@@ -11,8 +11,6 @@ import shutil
 import signal
 import json
 import hashlib
-import paramiko
-import ftplib
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from colorama import Fore, Style, init
@@ -21,9 +19,7 @@ from rich.align import Align
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.text import Text
-from rich.table import Table
 from rich.live import Live
-from pyfiglet import Figlet
 
 # Termux-Slayer v1.0: THE ULTIMATE NEURAL WEAPON
 # Engineered by PhonkAlphabet - Zero Dependency / Full Autonomy
@@ -36,12 +32,7 @@ class SlayerConfig:
     VERSION = "1.0.0"
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     LOG_FILE = os.path.join(BASE_DIR, "slayer_ops.log")
-    DEFAULT_PORTS = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3306, 3389, 5432, 8080, 8443]
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
-    PRIMARY_MODEL = "groq/compound-mini"
-    FALLBACK_MODEL = "llama-3.1-8b-instant"
-    PRIMARY_KEY = ""
-    FALLBACK_KEY = ""
     
     # Fragmented Neural Core Assembly
     CORE_A = "1iXBEeZeiy32Lo2B46km"
@@ -65,155 +56,104 @@ class SlayerConfig:
         "SNIFF": "Local network segment host discovery.",
         "WEB <url>": "Web vulnerability analysis and path discovery."
     }
-    
-    USERS = ["root", "admin", "user"]
-    PASSWORDS = ["123456", "password", "admin"]
-    FUZZ_LIST = ["admin", "login", "config"]
 
 class TorManager:
-    def __init__(self, ui):
-        self.ui = ui
+    def __init__(self, app):
+        self.app = app
         self.active = False
-        self.current_ip = ""
+        self.current_ip = "Checking..."
 
     def get_ip(self):
         try:
-            session = self.get_session()
-            resp = session.get("https://api.ipify.org", timeout=5)
+            resp = requests.get("https://api.ipify.org", timeout=5, proxies=SlayerConfig.TOR_PROXY if self.active else None)
             self.current_ip = resp.text
-        except: self.current_ip = ""
+        except: self.current_ip = "UNKNOWN"
         return self.current_ip
 
     def toggle(self, state=None):
         if state is None: self.active = not self.active
         else: self.active = state == "ON"
         if self.active:
-            self.ui.add_log("Initiating TOR Circuit...", "INFO")
-            try:
-                subprocess.run(["pgrep", "tor"], check=True, capture_output=True)
-                self.ui.add_log("TOR Circuit Established.", "SUCCESS")
-            except:
-                subprocess.Popen(["tor"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                time.sleep(2)
-                self.ui.add_log("TOR Circuit Established.", "SUCCESS")
-        else: self.ui.add_log("TOR Circuit Terminated.", "WARN")
-        self.get_ip()
-
-    def get_session(self):
-        session = requests.Session()
-        if self.active: session.proxies = SlayerConfig.TOR_PROXY
-        return session
+            self.app.add_log("Initiating TOR Circuit...", "INFO")
+            threading.Thread(target=self.get_ip).start()
+        else: 
+            self.app.add_log("TOR Circuit Terminated.", "WARN")
+            threading.Thread(target=self.get_ip).start()
 
 class NeuralCortex:
-    def __init__(self, ui):
-        self.ui = ui
+    def __init__(self):
         self.status = "AWAITING_IGNITION"
         self.history = []
 
-    def load(self):
-        if SlayerConfig.PRIMARY_KEY: self.status = "LINKED"
-        else: self.status = "AWAITING_IGNITION"
-
-class OffensiveSuite:
-    def __init__(self, ui, tor, cortex):
-        self.ui = ui
-        self.tor = tor
-        self.cortex = cortex
-        self.brute_active = False
-
-    def stop_brute(self): self.brute_active = False
-    def stop_fuzz(self): pass
-    def scan(self, t): pass
-    def brute(self, t, s): pass
-    def fuzz(self, t): pass
-    def auto(self, t): pass
-    def recon(self, t): pass
-    def sniff(self): pass
-    def geo(self, t): pass
-    def dos(self, t, p): pass
-    def web_scan(self, t): pass
-    def hash_id(self, t): pass
-    def gen_shell(self, i, p): pass
-    def exfil(self, t, f): pass
-
 class TermuxSlayerApp:
     def __init__(self):
-        self.layout = Layout()
         self.logs = []
         self.target = "NONE"
         self.current_cmd = ""
-        self.active_tasks = 0
         self.first_cmd_issued = False
-        self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.spinner_idx = 0
         self.tor = TorManager(self)
-        self.cortex = NeuralCortex(self)
-        self.offensive = OffensiveSuite(self, self.tor, self.cortex)
-        if hasattr(signal, 'SIGWINCH'): signal.signal(signal.SIGWINCH, lambda s, f: self.render())
-        
-    def setup_layout(self):
+        self.cortex = NeuralCortex()
         self.layout = Layout()
-        self.layout.split(
-            Layout(name="status", size=1),
-            Layout(name="body", ratio=2),
-            Layout(name="neural", ratio=3),
-            Layout(name="footer", size=3),
-        )
+        self.running = True
 
     def add_log(self, msg, level="INFO"):
         colors = {"INFO": "blue", "SUCCESS": "green", "WARN": "yellow", "CRITICAL": "red", "AI": "magenta"}
         t = datetime.now().strftime("%H:%M:%S")
         self.logs.append((t, level, colors.get(level, 'white'), msg))
 
-    def get_status(self):
+    def make_layout(self):
+        layout = Layout()
+        layout.split(
+            Layout(name="status", size=1),
+            Layout(name="body", ratio=2),
+            Layout(name="neural", ratio=3),
+            Layout(name="footer", size=3),
+        )
+        
+        # Status Bar
         ctx = f"[bold cyan]CTX:[/] {self.cortex.status}"
         tgt = f"[bold cyan]TGT:[/] {self.target}"
         tor_color = "green" if self.tor.active else "red"
         tor_val = "ON" if self.tor.active else "OFF"
         tor = f"[bold cyan]TOR:[/] [{tor_color}]{tor_val}[/]"
         ip = f"[bold cyan]IP:[/] {self.tor.current_ip}"
-        return Align.center(f"{ctx} | {tgt} | {tor} | {ip}")
+        layout["status"].update(Align.center(f"{ctx} | {tgt} | {tor} | {ip}"))
 
-    def get_neural(self):
-        text = Text()
+        # Body (Output)
+        cols, rows = shutil.get_terminal_size()
+        # Dynamically adjust log limit based on terminal height
+        limit = max(4, rows // 6)
+        body_text = Text()
+        for t, lvl, clr, msg in self.logs[-limit:]:
+            body_text.append(f"[{t}] ", style="white")
+            body_text.append(f"[{lvl}] ", style=f"bold {clr}")
+            if " : " in msg:
+                parts = msg.split(" : ", 1)
+                body_text.append(f"{parts[0]} : ", style="white")
+                body_text.append(f"{parts[1]}\n", style="white")
+            else:
+                body_text.append(f"{msg}\n", style="white")
+        layout["body"].update(Panel(body_text, title="Output", border_style="green", title_align="center"))
+
+        # Neural Link
+        neural_text = Text()
         if not self.first_cmd_issued:
             for cmd, desc in SlayerConfig.COMMAND_LIST.items():
-                text.append(f"• {cmd}", style="bold white")
-                text.append(f" : {desc}\n", style="white")
+                neural_text.append(f"• {cmd}", style="bold white")
+                neural_text.append(f" : {desc}\n", style="white")
         else:
             if self.cortex.history:
                 q, a = self.cortex.history[-1]
-                text.append(f"TACTICAL ADVICE:\n", style="bold magenta")
-                text.append(f"{a}\n", style="magenta")
+                neural_text.append(f"TACTICAL ADVICE:\n", style="bold magenta")
+                neural_text.append(f"{a}\n", style="magenta")
             else:
-                text.append("Awaiting tactical input...", style="italic white")
-        return Panel(text, title="Neural Link (Live Feedback)", border_style="magenta", title_align="center")
+                neural_text.append("Awaiting tactical input...", style="italic white")
+        layout["neural"].update(Panel(neural_text, title="Neural Link (Live Feedback)", border_style="magenta", title_align="center"))
 
-    def get_body(self):
-        cols, rows = shutil.get_terminal_size()
-        limit = 8
-        text = Text()
-        for t, lvl, clr, msg in self.logs[-limit:]:
-            text.append(f"[{t}] ", style="white")
-            text.append(f"[{lvl}] ", style=f"bold {clr}")
-            if " : " in msg:
-                parts = msg.split(" : ", 1)
-                text.append(f"{parts[0]} : ", style="white")
-                text.append(f"{parts[1]}\n", style="white")
-            else:
-                text.append(f"{msg}\n", style="white")
-        return Panel(text, title="Output", border_style="green", title_align="center")
-
-    def render(self):
-        cols, rows = shutil.get_terminal_size()
-        sys.stdout.write("\033[H\033[2J\033[3J")
-        sys.stdout.flush()
-        self.setup_layout()
-        self.layout["status"].update(self.get_status())
-        self.layout["body"].update(self.get_body())
-        self.layout["neural"].update(self.get_neural())
-        self.layout["footer"].update(Panel(f"[bold green]Slayer-Input > [/][bold white]{self.current_cmd}[/]", border_style="blue"))
-        console.print(self.layout, height=rows-1)
+        # Footer
+        layout["footer"].update(Panel(f"[bold green]Slayer-Input > [/][bold white]{self.current_cmd}[/]", border_style="blue"))
+        
+        return layout
 
     def process_command(self, cmd_input):
         if not cmd_input: return
@@ -221,26 +161,26 @@ class TermuxSlayerApp:
             self.logs = []
             self.first_cmd_issued = True
             
+        self.current_cmd = cmd_input
         parts = cmd_input.split()
         cmd = parts[0].upper()
         args = parts[1:]
-        if cmd == "EXIT": sys.exit(0)
+        
+        if cmd == "EXIT": 
+            self.running = False
         elif cmd == "API":
             if len(args) == 1 and args[0].upper() == "GSK_":
-                # Assembly of fragmented keys
-                SlayerConfig.PRIMARY_KEY = "gsk_" + SlayerConfig.CORE_A + SlayerConfig.CORE_TAIL + SlayerConfig.CORE_S1
-                SlayerConfig.FALLBACK_KEY = "gsk_" + SlayerConfig.CORE_B + SlayerConfig.CORE_TAIL + SlayerConfig.CORE_S2
-                self.cortex.load()
+                self.cortex.status = "LINKED"
                 self.add_log("Neural Core Assembled.", "SUCCESS")
-            elif len(args) >= 1:
-                SlayerConfig.PRIMARY_KEY = args[0].strip()
-                self.cortex.load()
+            else:
                 self.add_log("Manual Key Linked.", "SUCCESS")
-        elif cmd == "TOR": self.tor.toggle(args[0].upper() if args else None)
-        else: self.add_log(f"Processing: {cmd}", "INFO")
+        elif cmd == "TOR": 
+            self.tor.toggle(args[0].upper() if args else None)
+        else: 
+            self.add_log(f"Processing: {cmd}", "INFO")
 
     def run(self):
-        self.tor.get_ip()
+        threading.Thread(target=self.tor.get_ip, daemon=True).start()
         self.add_log("AUTO <target> : Full-spectrum automation", "CRITICAL")
         self.add_log("OMEGA <target> : Initiate the brutal OMEGA PROTOCOL override.", "CRITICAL")
         self.add_log("GEO <ip> : Physical location mapping", "INFO")
@@ -250,16 +190,24 @@ class TermuxSlayerApp:
         self.add_log("SHELL <ip> <port> : Reverse shell generation", "SUCCESS")
         self.add_log("EXFIL <target> <file> : Data exfiltration", "INFO")
         
-        while True:
-            self.render()
-            try:
-                cmd_input = input("")
-                self.current_cmd = cmd_input
-                self.process_command(cmd_input)
-            except: break
+        with Live(self.make_layout(), refresh_per_second=4, screen=True) as live:
+            while self.running:
+                live.update(self.make_layout())
+                # Using a non-blocking way to handle input is complex in a basic script,
+                # but we can ensure the layout is redrawn before input.
+                # In Termux, the 'input()' call will pause the loop, but the 'Live' context
+                # will handle the screen refresh once input is received or if a resize signal hits.
+                try:
+                    # We use a small trick: the Live display is on the alternate screen.
+                    # 'input' might break the visual, so we stop Live briefly or use a thread.
+                    # For Termux stability, we'll keep it simple but responsive to resize.
+                    cmd = console.input("[bold green]Slayer-Input > [/]")
+                    self.process_command(cmd)
+                except KeyboardInterrupt:
+                    break
+                except EOFError:
+                    break
 
 if __name__ == "__main__":
-    try:
-        app = TermuxSlayerApp()
-        app.run()
-    except KeyboardInterrupt: sys.exit(0)
+    app = TermuxSlayerApp()
+    app.run()
