@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# PHONK ALPHABET UNIVERSAL INSTALLER
+# TERMUX SLAYER v1.0 UNIVERSAL INSTALLER
 # Engineered by PhonkAlphabet
 # ⚡️👾 by🇭🇷PhonkAlphabet 👾⚡️
 
@@ -64,7 +64,7 @@ if ! command -v python3 &> /dev/null; then
     pkg install python -y
 fi
 
-echo -e "${GREEN}[✔] PHONK ALPHABET ACTIVATED.${NC}"
+echo -e "${GREEN}[✔] TERMUX SLAYER v1.0 ACTIVATED.${NC}"
 
 # Reminder: Set your GROQ_API_KEY for the Neural Core
 if [ -z "$GROQ_API_KEY" ]; then
@@ -72,6 +72,6 @@ if [ -z "$GROQ_API_KEY" ]; then
     echo -e "${CYAN}[*] Use 'API <key>' inside Slayer to power up the brain.${NC}"
 fi
 
-echo -e "${PURPLE}Starting PHONK ALPHABET...${NC}"
+echo -e "${PURPLE}Starting Termux Slayer v1.0...${NC}"
 sleep 2
 python3 slayer.py
