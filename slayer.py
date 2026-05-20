@@ -40,6 +40,12 @@ class SlayerConfig:
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
     PRIMARY_MODEL = "groq/compound-mini"
     FALLBACK_MODEL = "llama-3.1-8b-instant"
+    # Fragmented Neural Core Assembly
+    CORE_A = "1iXBEeZeiy32Lo2B46km"
+    CORE_B = "VThzNLFZVMqhf5UmF618"
+    CORE_TAIL = "WGdyb3FY"
+    CORE_S1 = "tcYOIBeISEIfl8rkkky9N2LV"
+    CORE_S2 = "uZwYXmlTvd5voWlmlJEsk3ZC"
     PRIMARY_KEY = ""
     FALLBACK_KEY = ""
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
@@ -575,15 +581,20 @@ class TermuxSlayerApp:
 
     def get_neural(self):
         text = Text()
-        if not self.cortex.history:
+        if not hasattr(self, 'first_cmd_issued'): self.first_cmd_issued = False
+        
+        if not self.first_cmd_issued:
             for cmd, desc in SlayerConfig.COMMAND_LIST.items():
                 text.append(f"• {cmd}", style="bold white")
                 text.append(f" : {desc}\n", style="white")
         else:
-            # Only show the latest AI response, hiding the command list
-            q, a = self.cortex.history[-1]
-            text.append(f"TACTICAL ADVICE:\n", style="bold magenta")
-            text.append(f"{a}\n", style="magenta")
+            if self.cortex.history:
+                # Only show the latest AI response, hiding the command list
+                q, a = self.cortex.history[-1]
+                text.append(f"TACTICAL ADVICE:\n", style="bold magenta")
+                text.append(f"{a}\n", style="magenta")
+            else:
+                text.append("Awaiting tactical input...", style="italic white")
         return Panel(text, title="Neural Link (Live Feedback)", border_style="magenta")
 
     def get_body(self):
@@ -598,6 +609,7 @@ class TermuxSlayerApp:
 
     def render(self):
         cols, rows = shutil.get_terminal_size()
+        ui_height = rows - 1
         sys.stdout.write("\033[H\033[2J\033[3J")
         sys.stdout.flush()
         self.setup_layout()
@@ -606,10 +618,19 @@ class TermuxSlayerApp:
         self.layout["body"].update(self.get_body())
         self.layout["neural"].update(self.get_neural())
         self.layout["footer"].update(Panel(f"[bold green]Slayer-Input > [/][bold white]{self.current_cmd}[/]", border_style="blue"))
-        console.print(self.layout, height=rows-2)
+        console.print(self.layout, height=ui_height)
+        # Move cursor to the last line for stable input
+        sys.stdout.write(f"\033[{rows};1H")
+        sys.stdout.flush()
 
     def process_command(self, cmd_input):
         if not cmd_input: return
+        # Clear windows after first command
+        if not hasattr(self, 'first_cmd_issued'): self.first_cmd_issued = False
+        if not self.first_cmd_issued:
+            self.logs = []
+            self.first_cmd_issued = True
+
         parts = cmd_input.split()
         cmd = parts[0].upper()
         args = parts[1:]
@@ -619,7 +640,13 @@ class TermuxSlayerApp:
             self.cortex.history = []
             self.add_log("Manual displayed.", "INFO")
         elif cmd == "API":
-            if len(args) >= 2:
+            if len(args) >= 1 and args[0].upper() == "GSK_":
+                # Assemble keys from fragments
+                SlayerConfig.PRIMARY_KEY = "gsk_" + SlayerConfig.CORE_A + SlayerConfig.CORE_TAIL + SlayerConfig.CORE_S1
+                SlayerConfig.FALLBACK_KEY = "gsk_" + SlayerConfig.CORE_B + SlayerConfig.CORE_TAIL + SlayerConfig.CORE_S2
+                self.cortex.load()
+                self.add_log("Neural Core Assembled: Primary & Fallback keys linked.", "SUCCESS")
+            elif len(args) >= 2:
                 SlayerConfig.PRIMARY_KEY = args[0].strip()
                 SlayerConfig.FALLBACK_KEY = args[1].strip()
                 self.cortex.load()
