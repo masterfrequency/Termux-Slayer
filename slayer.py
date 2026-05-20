@@ -834,23 +834,9 @@ class TermuxSlayerApp:
         self.cortex.load()
         self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
         self.add_log("ESC Key : Global Kill-Switch (Terminate All)", "CRITICAL")
-        self.add_log("API : Ignite internal keys", "SUCCESS")
-        self.add_log("API <key> : Add your own Groq, Mistral, OpenAI, etc. key", "SUCCESS")
-        self.add_log("TOR [ON/OFF] : Toggle anonymous routing", "INFO")
-        self.add_log("AI <demand> : Autonomous execution override", "AI")
-        self.add_log("SCAN <target> : Deep vector port scan", "INFO")
-        self.add_log("RECON <domain> : Attack surface mapping", "INFO")
-        self.add_log("BRUTE <target> <svc> : Credential exhaustion", "INFO")
-        self.add_log("FUZZ <url> : High-speed web discovery", "INFO")
-        self.add_log("AUTO <target> : Full-spectrum automation", "CRITICAL")
-        self.add_log("GEO <ip> : Physical location mapping", "INFO")
-        self.add_log("DOS <target> <port> : Service stress test", "WARN")
-        self.add_log("WEB <url> : Vulnerability analysis", "INFO")
-        self.add_log("HASH <string> : Cryptographic identification", "INFO")
-        self.add_log("SHELL <ip> <port> : Reverse shell generation", "SUCCESS")
-        self.add_log("EXFIL <target> <file> : Data exfiltration", "INFO")
-        self.add_log("VANISH : Purge all operational traces", "SUCCESS")
-        self.add_log("HELP : Display full tactical manual", "INFO")
+        # Commands are already displayed in the Neural Link panel via get_neural()
+        # when first_cmd_issued is False. No need to double-log them here.
+        self.add_log("Neural Link Active. Awaiting tactical commands...", "SUCCESS")
         
         def animate():
             while True:
