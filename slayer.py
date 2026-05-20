@@ -634,8 +634,8 @@ class TermuxSlayerApp:
     def render(self):
         cols, rows = shutil.get_terminal_size()
         ui_height = rows - 1
-        sys.stdout.write("\033[H\033[2J\033[3J")
-        sys.stdout.flush()
+        # Use a more efficient clear and update
+        sys.stdout.write("\033[H") # Move cursor to top instead of clearing everything
         self.setup_layout()
         self.layout["header"].update(self.get_header())
         self.layout["status"].update(self.get_status())
@@ -643,8 +643,8 @@ class TermuxSlayerApp:
         self.layout["neural"].update(self.get_neural())
         self.layout["footer"].update(Panel(f"[bold green]Slayer-Input > [/][bold white]{self.current_cmd}[/]", border_style="blue"))
         console.print(self.layout, height=ui_height)
-        # Move cursor to the last line for stable input
-        sys.stdout.write(f"\033[{rows};1H")
+        # Move cursor to the end of the input line
+        sys.stdout.write("\033[K") # Clear to end of line
         sys.stdout.flush()
 
     def process_command(self, cmd_input):
@@ -823,6 +823,10 @@ class TermuxSlayerApp:
                 time.sleep(0.1)
         threading.Thread(target=animate, daemon=True).start()
 
+        # Clear screen once at start
+        sys.stdout.write("\033[H\033[2J\033[3J")
+        sys.stdout.flush()
+
         # Use a more robust input loop that prevents shell leakage
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
@@ -830,15 +834,20 @@ class TermuxSlayerApp:
             tty.setcbreak(fd) # Use cbreak instead of raw for better stability
             while True:
                 self.render()
-                rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
                 if rlist:
                     char = sys.stdin.read(1)
                     if ord(char) == 27: # ESC key
                         # Check for multi-byte escape sequences (like arrows)
-                        rlist_esc, _, _ = select.select([sys.stdin], [], [], 0.01)
+                        # We need a longer timeout for Termux latency
+                        rlist_esc, _, _ = select.select([sys.stdin], [], [], 0.05)
                         if not rlist_esc:
                             self.offensive.stop_all()
+                            self.add_log("GLOBAL KILL-SWITCH TRIGGERED", "CRITICAL")
                             self.current_cmd = ""
+                        else:
+                            # Read and discard the rest of the sequence (like arrows)
+                            sys.stdin.read(2)
                     elif char in ['\r', '\n']:
                         cmd = self.current_cmd.strip()
                         self.current_cmd = ""
