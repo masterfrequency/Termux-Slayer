@@ -73,6 +73,7 @@ class SlayerConfig:
         "SHELL <ip> <port>": "Generate a stealthy reverse shell payload.",
         "EXFIL <target> <file>": "Exfiltrate data via encrypted tunnel.",
         "VANISH": "Purge all operational logs and traces.",
+        "CONSULT": "Batch analyze buffered intelligence and get tactical advice.",
         "HELP": "Display this tactical command manual.",
         "EXIT": "Terminate the neural link and exit."
     }
@@ -329,9 +330,8 @@ class OffensiveSuite:
                 recon_data["details"]["open_ports"] = self.scan(target)
                 recon_data["details"]["geo"] = self.geo(target)
             if not self.auto_active: return
-            self.ui.add_log("Phase 2: Consulting Neural Core for Exploitation Strategy...", "AI")
-            strategy = self.cortex.reason(f"Analyze target {target} ({recon_data['type']}) with following data: {recon_data['details']}. Provide the most efficient exploitation path.", recon_data)
-            self.ui.add_log(f"Neural Strategy Received: {strategy[:100]}...", "AI")
+            self.ui.add_log("Phase 2: Consolidating Intelligence for Neural Core...", "AI")
+            self.cortex.consult(target)
             open_ports = recon_data["details"].get("open_ports", [])
             for port, svc in open_ports:
                 if not self.auto_active: break
@@ -481,6 +481,7 @@ class NeuralCortex:
         self.ui = ui
         self.status = "OFFLINE"
         self.history = []
+        self.buffer = []
 
     def load(self):
         if SlayerConfig.PRIMARY_KEY:
@@ -489,8 +490,19 @@ class NeuralCortex:
         else: self.status = "AWAITING_IGNITION"
 
     def trigger_feedback(self, event_data):
-        if not SlayerConfig.PRIMARY_KEY: return
-        threading.Thread(target=self.reason, args=(f"Tactical Event: {event_data}. Provide immediate exploitation path.", {"event": event_data})).start()
+        t = datetime.now().strftime("%H:%M:%S")
+        self.buffer.append(f"[{t}] {event_data}")
+        self.ui.add_log("Intelligence buffered for analysis.", "AI")
+
+    def consult(self, target=None):
+        if not self.buffer:
+            self.ui.add_log("Intelligence buffer empty. Gather more data.", "WARN")
+            return
+        
+        intel = "\n".join(self.buffer)
+        prompt = f"Analyze the following intelligence gathered on target {target if target else 'Unknown'}:\n\n{intel}\n\nProvide a comprehensive exploitation playbook and advise on the next logical steps."
+        self.buffer = [] # Clear buffer after consulting
+        self.reason(prompt, {"target": target, "buffered_intel": intel})
 
     def reason(self, prompt, state):
         if not SlayerConfig.PRIMARY_KEY: return "Cortex offline. Use API <key>"
@@ -599,12 +611,16 @@ class TermuxSlayerApp:
                 text.append(f" : {desc}\n", style="white")
         else:
             if self.cortex.history:
-                # Only show the latest AI response, hiding the command list
                 q, a = self.cortex.history[-1]
                 text.append(f"TACTICAL ADVICE:\n", style="bold magenta")
                 text.append(f"{a}\n", style="magenta")
             else:
-                text.append("Awaiting tactical input...", style="italic white")
+                text.append("Awaiting tactical input...\n", style="italic white")
+            
+            if self.cortex.buffer:
+                text.append(f"\n[INTELLIGENCE BUFFERED: {len(self.cortex.buffer)} EVENTS]", style="bold yellow")
+                text.append("\nUse 'CONSULT' to analyze.", style="yellow")
+                
         return Panel(text, title="Neural Link (Live Feedback)", border_style="magenta")
 
     def get_body(self):
@@ -744,6 +760,9 @@ class TermuxSlayerApp:
         elif cmd == "VANISH":
             if os.path.exists(SlayerConfig.LOG_FILE): os.system(f"shred -u {SlayerConfig.LOG_FILE}")
             self.add_log("Traces purged.", "SUCCESS")
+        elif cmd == "CONSULT":
+            self.add_log("Initiating Batch Intelligence Analysis...", "AI")
+            threading.Thread(target=self.cortex.consult, args=(self.target,), daemon=True).start()
         else: self.add_log(f"Unknown: {cmd}", "WARN")
 
     def show_disclaimer(self):
