@@ -56,7 +56,8 @@ class SlayerConfig:
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
     
     COMMAND_LIST = {
-        "API [key]": "Ignite the Neural Core (Internal keys or custom Mistral/Groq/OpenAI).",
+        "API": "Ignite the Neural Core with internal keys.",
+        "API <key>": "Add your own Groq, Mistral, OpenAI, etc. key.",
         "TOR [ON/OFF]": "Toggle TOR circuit for anonymous routing.",
         "AI <demand>": "Direct neural link for autonomous execution.",
         "SCAN <target>": "Deep vector scan for open ports and services.",
@@ -806,7 +807,8 @@ class TermuxSlayerApp:
         self.cortex.load()
         self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
         self.add_log("ESC Key : Global Kill-Switch (Terminate All)", "CRITICAL")
-        self.add_log("API [key] : Ignite the Neural Core (Internal or custom)", "SUCCESS")
+        self.add_log("API : Ignite internal keys", "SUCCESS")
+        self.add_log("API <key> : Add your own Groq, Mistral, OpenAI, etc. key", "SUCCESS")
         self.add_log("TOR [ON/OFF] : Toggle anonymous routing", "INFO")
         self.add_log("AI <demand> : Autonomous execution override", "AI")
         self.add_log("SCAN <target> : Deep vector port scan", "INFO")
