@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# TERMUX-SLAYER UNIVERSAL INSTALLER
+# PHONK ALPHABET UNIVERSAL INSTALLER
 # Engineered by PhonkAlphabet
 # ⚡️👾 by🇭🇷PhonkAlphabet 👾⚡️
 
@@ -16,19 +16,17 @@ NC='\033[0m'
 
 echo -e "${PURPLE}"
 cat << "EOF"
-  _____  _    _  ____  _   _ _  __
- |  __ \| |  | |/ __ \| \ | | |/ /
- | |__) | |__| | |  | |  \| | ' / 
- |  ___/|  __  | |  | | . ` |  <  
- | |    | |  | | |__| | |\  | . \ 
- |_|    |_|  |_|\____/|_| \_|_|\_\
+    ____  __  ______  _   ____ __
+   / __ \/ / / / __ \/ | / / //_/
+  / /_/ / /_/ / / / /  |/ / ,<   
+ / ____/ __  / /_/ / /|  / /| |  
+/_/   /_/ /_/\____/_/ |_/_/ |_|  
 
-           _      _____  _    _          ____  ______ _______ 
-     /\   | |    |  __ \| |  | |   /\   |  _ \|  ____|__   __|
-    /  \  | |    | |__) | |__| |  /  \  | |_) | |__     | |   
-   / /\ \ | |    |  ___/|  __  | / /\ \ |  _ <|  __|    | |   
-  / ____ \| |____| |    | |  | |/ ____ \| |_) | |____   | |   
- /_/    \_\______|_|    |_|  |_/_/    \_\____/|______|  |_|   
+    ___    __    ____  __  _____    ____  ____________
+   /   |  / /   / __ \/ / / /   |  / __ )/ ____/_  __/
+  / /| | / /   / /_/ / /_/ / /| | / __  / __/   / /   
+ / ___ |/ /___/ ____/ __  / ___ |/ /_/ / /___  / /    
+/_/  |_/_____/_/   /_/ /_/_/  |_/_____/_____/ /_/     
 EOF
 echo -e "         -- NEURAL RED TEAM v1.0 --${NC}"
 echo -e "         -- Engineered by PhonkAlphabet --\n"
@@ -66,7 +64,7 @@ if ! command -v python3 &> /dev/null; then
     pkg install python -y
 fi
 
-echo -e "${GREEN}[✔] TERMUX-SLAYER ACTIVATED.${NC}"
+echo -e "${GREEN}[✔] PHONK ALPHABET ACTIVATED.${NC}"
 
 # Reminder: Set your GROQ_API_KEY for the Neural Core
 if [ -z "$GROQ_API_KEY" ]; then
@@ -74,6 +72,6 @@ if [ -z "$GROQ_API_KEY" ]; then
     echo -e "${CYAN}[*] Use 'API <key>' inside Slayer to power up the brain.${NC}"
 fi
 
-echo -e "${PURPLE}Starting Termux-Slayer...${NC}"
+echo -e "${PURPLE}Starting PHONK ALPHABET...${NC}"
 sleep 2
 python3 slayer.py

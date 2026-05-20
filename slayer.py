@@ -572,7 +572,7 @@ class TermuxSlayerApp:
     def get_header(self):
         cols, rows = shutil.get_terminal_size()
         if rows < 25: return Panel(Align.center("[bold magenta]PHONK ALPHABET v1.0[/]"), style="blue", box=None)
-        f = Figlet(font='small')
+        f = Figlet(font='slant')
         banner = f.renderText('PHONK') + "\n" + f.renderText('ALPHABET')
         return Panel(Align.center(f"[bold magenta]{banner}[/]"), style="blue")
 
