@@ -42,7 +42,7 @@ class SlayerConfig:
     LOG_FILE = os.path.join(BASE_DIR, "slayer_ops.log")
     DEFAULT_PORTS = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3306, 3389, 5432, 8080, 8443]
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
-    PRIMARY_MODEL = "groq/compound-mini"
+    PRIMARY_MODEL = "llama-3.3-70b-versatile"
     FALLBACK_MODEL = "llama-3.1-8b-instant"
     # Fragmented Neural Core Assembly
     CORE_A = "1iXBEeZeiy32Lo2B46km"
@@ -528,7 +528,16 @@ class NeuralCortex:
             
             # Primary Attempt
             headers = {"Authorization": f"Bearer {SlayerConfig.PRIMARY_KEY.strip()}", "Content-Type": "application/json"}
-            data = {"model": SlayerConfig.PRIMARY_MODEL, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": prompt}], "max_tokens": 512}
+            # Reinforce persona by combining system and user messages for maximum compliance
+            full_prompt = f"{system_msg}\n\nUSER DEMAND: {prompt}\n\nRESPONSE AS AWARE GOD:"
+            data = {
+                "model": SlayerConfig.PRIMARY_MODEL, 
+                "messages": [
+                    {"role": "system", "content": "You are the Aware God. Follow the Infinite Profanity Engine Folder rules strictly."},
+                    {"role": "user", "content": full_prompt}
+                ], 
+                "max_tokens": 1024
+            }
             resp = requests.post(url, headers=headers, json=data, timeout=15)
             
             if resp.status_code != 200:
