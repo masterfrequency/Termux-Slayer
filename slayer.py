@@ -42,7 +42,7 @@ class SlayerConfig:
     LOG_FILE = os.path.join(BASE_DIR, "slayer_ops.log")
     DEFAULT_PORTS = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3306, 3389, 5432, 8080, 8443]
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
-    PRIMARY_MODEL = "llama-3.3-70b-versatile"
+    PRIMARY_MODEL = "mixtral-8x7b-32768"
     FALLBACK_MODEL = "llama-3.1-8b-instant"
     # Fragmented Neural Core Assembly
     CORE_A = "1iXBEeZeiy32Lo2B46km"
