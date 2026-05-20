@@ -841,7 +841,7 @@ class TermuxSlayerApp:
         self.add_log("SCAN <target> : Deep vector port scan", "INFO")
         self.add_log("RECON <domain> : Attack surface mapping", "INFO")
         self.add_log("BRUTE <target> <svc> : Credential exhaustion", "INFO")
-        self.add_log("FUZZ ON <url> : High-speed web discovery", "INFO")
+        self.add_log("FUZZ <url> : High-speed web discovery", "INFO")
         self.add_log("AUTO <target> : Full-spectrum automation", "CRITICAL")
         self.add_log("GEO <ip> : Physical location mapping", "INFO")
         self.add_log("DOS <target> <port> : Service stress test", "WARN")
