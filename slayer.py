@@ -16,6 +16,7 @@ import ftplib
 import termios
 import tty
 import select
+import random
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from colorama import Fore, Style, init
@@ -744,7 +745,60 @@ class TermuxSlayerApp:
             self.add_log("Traces purged.", "SUCCESS")
         else: self.add_log(f"Unknown: {cmd}", "WARN")
 
+    def show_disclaimer(self):
+        disclaimer = [
+            "!!! TACTICAL WARNING !!!",
+            "This tool is for educational and authorized",
+            "security testing only. Unauthorized access",
+            "is illegal. Use at your own risk.",
+            "",
+            "⚡️👾 by🇭🇷PhonkAlphabet 👾⚡️"
+        ]
+        
+        cols, rows = shutil.get_terminal_size()
+        center_row = rows // 2 - len(disclaimer) // 2
+        
+        # Clear screen
+        sys.stdout.write("\033[H\033[2J\033[3J")
+        sys.stdout.flush()
+        
+        # Flying letters animation
+        final_lines = [" " * cols for _ in range(rows)]
+        for i, line in enumerate(disclaimer):
+            target_row = center_row + i
+            target_col = (cols - len(line)) // 2
+            
+            current_line = list(" " * cols)
+            for char_idx, char in enumerate(line):
+                if char == " ": continue
+                
+                # Start from random position
+                curr_r = random.randint(0, rows - 1)
+                curr_c = random.randint(0, cols - 1)
+                
+                # Move to target
+                steps = 15
+                for s in range(steps):
+                    # Erase old
+                    sys.stdout.write(f"\033[{curr_r+1};{curr_c+1}H ")
+                    
+                    # Update pos
+                    curr_r += (target_row - curr_r) // (steps - s) if steps > s else 0
+                    curr_c += (target_col + char_idx - curr_c) // (steps - s) if steps > s else 0
+                    
+                    # Draw new
+                    color = Fore.RED if i < 4 else Fore.MAGENTA
+                    sys.stdout.write(f"\033[{curr_r+1};{curr_c+1}H{color}{char}{Style.RESET_ALL}")
+                    sys.stdout.flush()
+                    time.sleep(0.005)
+            
+        time.sleep(2)
+        # Fade out / Clear
+        sys.stdout.write("\033[H\033[2J\033[3J")
+        sys.stdout.flush()
+
     def run(self):
+        self.show_disclaimer()
         self.tor.get_ip()
         self.cortex.load()
         self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
