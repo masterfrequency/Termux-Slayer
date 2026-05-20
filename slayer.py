@@ -181,7 +181,6 @@ class TermuxSlayerApp:
         for t, lvl, clr, msg in self.logs[-limit:]:
             text.append(f"[{t}] ", style="white")
             text.append(f"[{lvl}] ", style=f"bold {clr}")
-            # Matching the screenshot's command : description format
             if " : " in msg:
                 parts = msg.split(" : ", 1)
                 text.append(f"{parts[0]} : ", style="white")
@@ -224,8 +223,8 @@ class TermuxSlayerApp:
         while True:
             self.render()
             try:
-                # In a real termux env, we'd use a more sophisticated input loop
-                # but for this script, we'll simulate the prompt look
+                # To simulate the exact look of the prompt in the screenshot
+                # we need to capture input without showing a second prompt
                 cmd_input = input("")
                 self.current_cmd = cmd_input
                 self.process_command(cmd_input)
