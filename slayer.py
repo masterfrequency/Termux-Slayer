@@ -56,26 +56,26 @@ class SlayerConfig:
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
     
     COMMAND_LIST = {
-        "API": "Ignite the Neural Core with internal keys.",
-        "API <key>": "Add your own Groq, Mistral, OpenAI, etc. key.",
-        "TOR [ON/OFF]": "Toggle TOR circuit for anonymous routing.",
-        "AI <demand>": "Direct neural link for autonomous execution.",
-        "SCAN <target>": "Deep vector scan for open ports and services.",
-        "RECON <domain>": "Subdomain discovery and attack surface mapping.",
-        "BRUTE <target> <svc>": "Automated credential exhaustion (SSH/FTP).",
-        "FUZZ <url>": "Initiate high-speed web directory discovery.",
-        "AUTO <target>": "Full-spectrum automated exploitation sequence.",
-        "SNIFF": "Local network segment host discovery.",
-        "WEB <url>": "Web vulnerability analysis and path discovery.",
-        "GEO <ip>": "Physical location mapping and ISP identification.",
-        "DOS <target> <port>": "Multi-threaded service stress testing.",
-        "HASH <string>": "Cryptographic hash identification (MD5/SHA).",
-        "SHELL <ip> <port>": "Generate a stealthy reverse shell payload.",
-        "EXFIL <target> <file>": "Exfiltrate data via encrypted tunnel.",
-        "VANISH": "Purge all operational logs and traces.",
-        "CONSULT": "Batch analyze buffered intelligence and get tactical advice.",
-        "HELP": "Display this tactical command manual.",
-        "EXIT": "Terminate the neural link and exit."
+        "API": "Ignite internal keys.",
+        "API <key>": "Add your own AI key.",
+        "TOR [ON/OFF]": "Toggle anonymous routing.",
+        "AI <demand>": "Direct neural execution.",
+        "SCAN <target>": "Deep vector port scan.",
+        "RECON <domain>": "Attack surface mapping.",
+        "BRUTE <tgt> <svc>": "Credential exhaustion.",
+        "FUZZ <url>": "Web directory discovery.",
+        "AUTO <target>": "Full-spectrum automation.",
+        "SNIFF": "Local network host discovery.",
+        "WEB <url>": "Web vulnerability analysis.",
+        "GEO <ip>": "Physical location mapping.",
+        "DOS <tgt> <port>": "Service stress testing.",
+        "HASH <string>": "Cryptographic identification.",
+        "SHELL <ip> <pt>": "Reverse shell generation.",
+        "EXFIL <tgt> <file>": "Encrypted data tunnel.",
+        "CONSULT": "Batch intel analysis.",
+        "VANISH": "Purge operational traces.",
+        "HELP": "Display tactical manual.",
+        "EXIT": "Terminate neural link."
     }
     
     # Global 2026 Credential Wordlist (Harvested from GitHub/SecLists)
@@ -596,7 +596,9 @@ class TermuxSlayerApp:
             Layout(name="main", ratio=1),
             Layout(name="footer", size=3),
         )
-        self.layout["main"].split(Layout(name="body", ratio=2), Layout(name="neural", ratio=3))
+        # Give neural more ratio if first_cmd_issued is False to show all commands
+        n_ratio = 4 if not hasattr(self, 'first_cmd_issued') or not self.first_cmd_issued else 3
+        self.layout["main"].split(Layout(name="body", ratio=2), Layout(name="neural", ratio=n_ratio))
 
     def add_log(self, msg, level="INFO"):
         colors = {"INFO": "blue", "SUCCESS": "green", "WARN": "yellow", "CRITICAL": "red", "AI": "magenta"}
