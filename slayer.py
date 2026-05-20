@@ -823,35 +823,47 @@ class TermuxSlayerApp:
                 time.sleep(0.1)
         threading.Thread(target=animate, daemon=True).start()
 
-        while True:
-            self.render()
-            try:
-                # Use non-blocking input to detect ESC key
-                fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)
-                try:
-                    tty.setraw(sys.stdin.fileno())
-                    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
-                    if rlist:
-                        char = sys.stdin.read(1)
-                        if ord(char) == 27: # ESC key
+        # Use a more robust input loop that prevents shell leakage
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd) # Use cbreak instead of raw for better stability
+            while True:
+                self.render()
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if rlist:
+                    char = sys.stdin.read(1)
+                    if ord(char) == 27: # ESC key
+                        # Check for multi-byte escape sequences (like arrows)
+                        rlist_esc, _, _ = select.select([sys.stdin], [], [], 0.01)
+                        if not rlist_esc:
                             self.offensive.stop_all()
                             self.current_cmd = ""
-                            continue
-                        elif char in ['\r', '\n']:
-                            cmd = self.current_cmd
-                            self.current_cmd = ""
-                            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                            self.process_command(cmd)
-                        elif ord(char) == 127: # Backspace
-                            self.current_cmd = self.current_cmd[:-1]
-                        else:
-                            self.current_cmd += char
-                finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except Exception as e:
-                # self.add_log(f"Input Error: {e}", "WARN")
-                break
+                    elif char in ['\r', '\n']:
+                        cmd = self.current_cmd.strip()
+                        self.current_cmd = ""
+                        if cmd.upper() == "EXIT":
+                            break
+                        self.process_command(cmd)
+                    elif ord(char) in [127, 8]: # Backspace
+                        self.current_cmd = self.current_cmd[:-1]
+                    elif ord(char) >= 32: # Printable characters
+                        self.current_cmd += char
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            # Fallback to standard input if tty fails
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            while True:
+                try:
+                    cmd = input("Slayer-Input > ").strip()
+                    if cmd.upper() == "EXIT": break
+                    self.process_command(cmd)
+                except (KeyboardInterrupt, EOFError): break
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            sys.stdout.write("\033[H\033[2J\033[3J")
+            sys.stdout.flush()
 
 if __name__ == "__main__":
     try:
