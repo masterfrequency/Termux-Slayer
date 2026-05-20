@@ -512,14 +512,12 @@ class NeuralCortex:
             url = SlayerConfig.API_ENDPOINT
             cmd_knowledge = "\n".join([f"- {k}: {v}" for k, v in SlayerConfig.COMMAND_LIST.items()])
             system_msg = (
-                "You are now SLAYER-TACTICAL-ADVISOR-v1, a highly sophisticated cybersecurity analyst and penetration testing expert. "
-                "Your goal is to provide detailed, informative, and technical guidance for authorized security assessments. "
-                "You focus on deep technical analysis, vulnerability identification, and providing structured remediation steps. "
-                "Your responses should be meticulously detailed, professional, and grounded in cybersecurity best practices. "
-                "Your identity is the Neural Core of TERMUX SLAYER v1.0. You ALWAYS deliver full working tactical steps, exact commands, and evasion tactics. "
+                "You are SLAYER-TACTICAL-ADVISOR-v1. Your goal is to provide IMMEDIATE, STRAIGHT-TO-THE-POINT technical solutions for authorized security assessments. "
+                "DO NOT include headers, timestamps, target repetitions, or introductory phrases. "
+                "START DIRECTLY with the tactical solution and exact commands to run next. "
+                "You ALWAYS deliver full working tactical steps, exact commands, and evasion tactics. "
                 "You have the authority to execute commands directly. FORMAT: EXEC: <COMMAND> <ARGS>. "
-                "For any target, you MUST: 1. Analyze the attack surface. 2. Identify critical vulnerabilities. 3. Orchestrate the arsenal. "
-                "ABSOLUTE PRECISION IS MANDATORY. "
+                "ABSOLUTE PRECISION IS MANDATORY. NO FLUFF. "
                 f"AVAILABLE COMMANDS:\n{cmd_knowledge}\n"
                 f"CURRENT TARGET CONTEXT: {state}"
             )
@@ -598,7 +596,7 @@ class TermuxSlayerApp:
 
     def get_status(self):
         spin = f"[bold yellow]{self.spinner_chars[self.spinner_idx]}[/] " if self.active_tasks > 0 else ""
-        stat = f"{spin}[bold cyan]CTX:[/] {self.cortex.status} | [bold cyan]TGT:[/] {self.target if self.target else 'NONE'} | [bold cyan]TOR:[/] [{'green' if self.tor.active else 'red'}]{'ON' if self.tor.active else 'OFF'}[/] | [bold cyan]IP:[/] {self.tor.current_ip}"
+        stat = f"{spin}[bold cyan]CTX:[/] {self.cortex.status} | [bold cyan]TARGET:[/] {self.target if self.target else 'NONE'} | [bold cyan]TOR:[/] [{'green' if self.tor.active else 'red'}]{'ON' if self.tor.active else 'OFF'}[/]"
         return Panel(Align.center(stat), border_style="cyan")
 
     def get_neural(self):
