@@ -13,6 +13,9 @@ import json
 import hashlib
 import paramiko
 import ftplib
+import termios
+import tty
+import select
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from colorama import Fore, Style, init
@@ -286,6 +289,22 @@ class OffensiveSuite:
         else:
             self.ui.add_log("No active fuzzing to terminate.", "WARN")
 
+    def stop_all(self):
+        active = False
+        if self.brute_active:
+            self.brute_active = False
+            active = True
+        if self.fuzz_active:
+            self.fuzz_active = False
+            active = True
+        if self.auto_active:
+            self.auto_active = False
+            active = True
+        
+        if active:
+            self.ui.add_log("GLOBAL KILL-SWITCH TRIGGERED. All operations halted.", "CRITICAL")
+        return active
+
     def auto(self, target):
         self.ui.active_tasks += 1
         self.auto_active = True
@@ -294,6 +313,7 @@ class OffensiveSuite:
         recon_data = {"target": target, "type": "unknown", "details": {}}
         
         # 1. Target Identification & Phase 1: Recon
+        if not self.auto_active: return
         if re.match(r"^(http|https)://", target):
             recon_data["type"] = "URL"
             self.ui.add_log(f"Target identified as URL. Initiating Web Surface Analysis...", "INFO")
@@ -314,6 +334,7 @@ class OffensiveSuite:
             recon_data["details"]["geo"] = self.geo(target)
 
         # 2. Neural Strategy Consultation
+        if not self.auto_active: return
         self.ui.add_log("Phase 2: Consulting Neural Core for Exploitation Strategy...", "AI")
         strategy = self.cortex.reason(f"Analyze target {target} ({recon_data['type']}) with following data: {recon_data['details']}. Provide the most efficient exploitation path.", recon_data)
         self.ui.add_log(f"Neural Strategy Received: {strategy[:100]}...", "AI")
@@ -727,6 +748,7 @@ class TermuxSlayerApp:
         self.tor.get_ip()
         self.cortex.load()
         self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
+        self.add_log("ESC Key : Global Kill-Switch (Terminate All)", "CRITICAL")
         self.add_log("API gsk_ : Ignite the Neural Core", "SUCCESS")
         self.add_log("TOR [ON/OFF] : Toggle anonymous routing", "INFO")
         self.add_log("AI <demand> : Autonomous execution override", "AI")
@@ -755,12 +777,32 @@ class TermuxSlayerApp:
         while True:
             self.render()
             try:
-                sys.stdout.write(f"{Fore.GREEN}Slayer-Input > {Style.RESET_ALL}")
-                sys.stdout.flush()
-                cmd_input = sys.stdin.readline().strip()
-                self.current_cmd = cmd_input
-                self.process_command(cmd_input)
-            except: break
+                # Use non-blocking input to detect ESC key
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(sys.stdin.fileno())
+                    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                    if rlist:
+                        char = sys.stdin.read(1)
+                        if ord(char) == 27: # ESC key
+                            self.offensive.stop_all()
+                            self.current_cmd = ""
+                            continue
+                        elif char in ['\r', '\n']:
+                            cmd = self.current_cmd
+                            self.current_cmd = ""
+                            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                            self.process_command(cmd)
+                        elif ord(char) == 127: # Backspace
+                            self.current_cmd = self.current_cmd[:-1]
+                        else:
+                            self.current_cmd += char
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except Exception as e:
+                # self.add_log(f"Input Error: {e}", "WARN")
+                break
 
 if __name__ == "__main__":
     try:
