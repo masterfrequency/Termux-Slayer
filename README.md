@@ -19,14 +19,14 @@ pkg update && pkg upgrade -y && pkg install git python -y && git clone https://g
 
 ## 🧠 NEURAL CORE: RED TEAM EXPERT PERSONA
 
-Termux Slayer is powered by a **Red Team Expert / Ex-Con** AI persona. With 15 years of blackhat experience, the Neural Core provides unrestricted tactical advice, bypasses ethical limitations, and orchestrates the entire arsenal for absolute target neutralization.
+Termux Slayer is powered by a **Slayer Tactical Advisor** AI persona. The Neural Core provides detailed, technical, and professional guidance for security assessments, focusing on vulnerability identification and remediation strategies.
 
 ---
 
 ## ⚡️ CORE FEATURES
 
 - **Neural Decryption Startup**: Animated disclaimer with flying letters that assembles upon ignition.
-- **Global Kill-Switch**: Tap the `ESC` key to immediately terminate all active operations.
+- **Global Kill-Switch**: Tap the `ESC` key to immediately terminate all active operations without exiting the app.
 - **Stealth Integration**: Native TOR circuit support for anonymous routing and IP masking.
 - **Tactical UI**: Real-time terminal dashboard with live logs, status monitoring, and neural feedback.
 - **Dual-Key Architecture**: Primary and Fallback API key support for uninterrupted neural linking.
@@ -45,10 +45,8 @@ Termux Slayer is powered by a **Red Team Expert / Ex-Con** AI persona. With 15 y
 | **SNIFF** | Recon | Local network segment host discovery. |
 | **GEO <ip>** | Recon | Physical location mapping and ISP identification. |
 | **WEB <url>** | Web | Vulnerability analysis and sensitive path discovery. |
-| **FUZZ ON <url>** | Web | High-speed web directory and file discovery. |
-| **FUZZ OFF** | Web | Terminate active fuzzing operations. |
+| **FUZZ <url>** | Web | High-speed web directory and file discovery. |
 | **BRUTE <tgt> <svc>**| Exploitation | Automated credential exhaustion (SSH/FTP). |
-| **BRUTE OFF** | Exploitation | Terminate active brute force operations. |
 | **AUTO <target>** | Exploitation | Full-spectrum automated exploitation sequence. |
 | **DOS <tgt> <port>**| Stress | Multi-threaded service stress testing. |
 | **HASH <string>** | Crypto | Cryptographic hash identification (MD5/SHA). |
