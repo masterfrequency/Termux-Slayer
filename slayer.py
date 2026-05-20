@@ -578,10 +578,8 @@ class TermuxSlayerApp:
         
     def setup_layout(self):
         cols, rows = shutil.get_terminal_size()
-        kb = rows < 25
         self.layout = Layout()
         self.layout.split(
-            Layout(name="header", size=1 if kb else 3),
             Layout(name="status", size=3),
             Layout(name="main", ratio=1),
             Layout(name="footer", size=3),
@@ -639,7 +637,6 @@ class TermuxSlayerApp:
         # Use a more efficient clear and update
         sys.stdout.write("\033[H") # Move cursor to top instead of clearing everything
         self.setup_layout()
-        self.layout["header"].update(self.get_header())
         self.layout["status"].update(self.get_status())
         self.layout["body"].update(self.get_body())
         self.layout["neural"].update(self.get_neural())
