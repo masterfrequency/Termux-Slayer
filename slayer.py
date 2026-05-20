@@ -547,31 +547,25 @@ class TermuxSlayerApp:
         
     def setup_layout(self):
         cols, rows = shutil.get_terminal_size()
-        kb = rows < 25
         self.layout = Layout()
         self.layout.split(
-            Layout(name="header", size=1 if kb else 3),
-            Layout(name="status", size=3),
-            Layout(name="main", ratio=1),
+            Layout(name="status", size=1),
+            Layout(name="body", ratio=2),
+            Layout(name="neural", ratio=3),
             Layout(name="footer", size=3),
         )
-        self.layout["main"].split(Layout(name="body", ratio=2), Layout(name="neural", ratio=3))
 
     def add_log(self, msg, level="INFO"):
-        colors = {"INFO": "blue", "SUCCESS": "green", "WARN": "yellow", "CRITICAL": "red", "AI": "magenta"}
+        colors = {"INFO": "blue", "SUCCESS": "green", "WARN": "yellow", "CRITICAL": "red", "AI": "magenta", "SHELL": "green"}
         t = datetime.now().strftime("%H:%M:%S")
         self.logs.append((t, level, colors.get(level, 'white'), msg))
 
-    def get_header(self):
-        cols, rows = shutil.get_terminal_size()
-        if rows < 25: return Panel(Align.center("[bold magenta]TERMUX-SLAYER v1.0[/]"), style="blue", box=None)
-        f = Figlet(font='small')
-        return Panel(Align.center(f"[bold magenta]{f.renderText('TERMUX-SLAYER')}[/]"), style="blue")
-
     def get_status(self):
         spin = f"[bold yellow]{self.spinner_chars[self.spinner_idx]}[/] " if self.active_tasks > 0 else ""
-        stat = f"{spin}[bold cyan]CTX:[/] {self.cortex.status} | [bold cyan]TGT:[/] {self.target if self.target else 'NONE'} | [bold cyan]TOR:[/] [{'green' if self.tor.active else 'red'}]{'ON' if self.tor.active else 'OFF'}[/] | [bold cyan]IP:[/] {self.tor.current_ip}"
-        return Panel(Align.center(stat), border_style="cyan")
+        stat = f"{spin}[bold cyan]CTX:[/] {self.cortex.status} | [bold cyan]TGT:[/] {self.target if self.target else 'NONE'} | [bold cyan]TOR:[/] [{'red' if not self.tor.active else 'green'}]OFF[/] | [bold cyan]IP:[/] {self.tor.current_ip}"
+        if self.tor.active:
+            stat = f"{spin}[bold cyan]CTX:[/] {self.cortex.status} | [bold cyan]TGT:[/] {self.target if self.target else 'NONE'} | [bold cyan]TOR:[/] [green]ON[/] | [bold cyan]IP:[/] {self.tor.current_ip}"
+        return Align.center(stat)
 
     def get_neural(self):
         text = Text()
@@ -593,7 +587,13 @@ class TermuxSlayerApp:
         for t, lvl, clr, msg in self.logs[-limit:]:
             text.append(f"[{t}] ", style="white")
             text.append(f"[{lvl}] ", style=f"bold {clr}")
-            text.append(f"{msg}\n", style="white")
+            # Special case for commands in the screenshot
+            if " : " in msg:
+                parts = msg.split(" : ", 1)
+                text.append(f"{parts[0]} : ", style="white")
+                text.append(f"{parts[1]}\n", style="white")
+            else:
+                text.append(f"{msg}\n", style="white")
         return Panel(text, title="Output", border_style="green")
 
     def render(self):
@@ -601,7 +601,6 @@ class TermuxSlayerApp:
         sys.stdout.write("\033[H\033[2J\033[3J")
         sys.stdout.flush()
         self.setup_layout()
-        self.layout["header"].update(self.get_header())
         self.layout["status"].update(self.get_status())
         self.layout["body"].update(self.get_body())
         self.layout["neural"].update(self.get_neural())
@@ -697,23 +696,15 @@ class TermuxSlayerApp:
     def run(self):
         self.tor.get_ip()
         self.cortex.load()
-        self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
-        self.add_log("API gsk_ : Ignite the Neural Core", "SUCCESS")
-        self.add_log("TOR [ON/OFF] : Toggle anonymous routing", "INFO")
-        self.add_log("AI <demand> : Autonomous execution override", "AI")
-        self.add_log("SCAN <target> : Deep vector port scan", "INFO")
-        self.add_log("RECON <domain> : Attack surface mapping", "INFO")
-        self.add_log("BRUTE <target> <svc> : Credential exhaustion", "INFO")
-        self.add_log("FUZZ ON <url> : High-speed web discovery", "INFO")
+        # Matching the screenshot logs exactly
         self.add_log("AUTO <target> : Full-spectrum automation", "CRITICAL")
+        self.add_log("OMEGA <target> : Initiate the brutal OMEGA PROTOCOL override.", "CRITICAL")
         self.add_log("GEO <ip> : Physical location mapping", "INFO")
         self.add_log("DOS <target> <port> : Service stress test", "WARN")
         self.add_log("WEB <url> : Vulnerability analysis", "INFO")
         self.add_log("HASH <string> : Cryptographic identification", "INFO")
         self.add_log("SHELL <ip> <port> : Reverse shell generation", "SUCCESS")
         self.add_log("EXFIL <target> <file> : Data exfiltration", "INFO")
-        self.add_log("VANISH : Purge all operational traces", "SUCCESS")
-        self.add_log("HELP : Display full tactical manual", "INFO")
         
         def animate():
             while True:
