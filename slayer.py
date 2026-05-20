@@ -44,6 +44,7 @@ class SlayerConfig:
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
     PRIMARY_MODEL = "mistral-small-latest"
     FALLBACK_MODEL = "mistral-small-latest"
+    API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
     # Fragmented Neural Core Assembly
     CORE_A = "SuSWVuKYZsmV1XjeT2oR"
     CORE_B = "CQhI2Mi30Uzv"
@@ -55,7 +56,7 @@ class SlayerConfig:
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
     
     COMMAND_LIST = {
-        "API gsk_": "Ignite the Neural Core with your Groq API.",
+        "API <key>": "Ignite the Neural Core with any API key (Mistral/Groq/OpenAI).",
         "TOR [ON/OFF]": "Toggle TOR circuit for anonymous routing.",
         "AI <demand>": "Direct neural link for autonomous execution.",
         "SCAN <target>": "Deep vector scan for open ports and services.",
@@ -493,11 +494,11 @@ class NeuralCortex:
         threading.Thread(target=self.reason, args=(f"Tactical Event: {event_data}. Provide immediate exploitation path.", {"event": event_data})).start()
 
     def reason(self, prompt, state):
-        if not SlayerConfig.PRIMARY_KEY: return "Cortex offline. Use API <key1> <key2>"
+        if not SlayerConfig.PRIMARY_KEY: return "Cortex offline. Use API <key>"
         self.ui.active_tasks += 1
         self.status = "THINKING"
         try:
-            url = "https://api.mistral.ai/v1/chat/completions"
+            url = SlayerConfig.API_ENDPOINT
             
             cmd_knowledge = "\n".join([f"- {k}: {v}" for k, v in SlayerConfig.COMMAND_LIST.items()])
             system_msg = (
@@ -664,29 +665,29 @@ class TermuxSlayerApp:
             self.cortex.history = []
             self.add_log("Manual displayed.", "INFO")
         elif cmd == "API":
-            if len(args) >= 1 and args[0].upper() == "GSK_":
-                # Assemble keys from fragments
-                SlayerConfig.PRIMARY_KEY = "gsk_" + SlayerConfig.CORE_A + SlayerConfig.CORE_TAIL + SlayerConfig.CORE_S1
-                SlayerConfig.FALLBACK_KEY = "gsk_" + SlayerConfig.CORE_B + SlayerConfig.CORE_TAIL + SlayerConfig.CORE_S2
-                self.cortex.load()
-                self.add_log("Neural Core Assembled: Primary & Fallback keys linked.", "SUCCESS")
-            elif len(args) >= 2:
-                SlayerConfig.PRIMARY_KEY = args[0].strip()
-                SlayerConfig.FALLBACK_KEY = args[1].strip()
-                self.cortex.load()
-                self.add_log(f"Dual-Key Assembly: {SlayerConfig.PRIMARY_KEY[:10]}... / {SlayerConfig.FALLBACK_KEY[:10]}...", "SUCCESS")
-            elif len(args) == 1:
+            if len(args) >= 1:
                 key_input = args[0].strip()
+                # Auto-detection for API providers
                 if key_input.startswith("gsk_"):
                     SlayerConfig.PRIMARY_KEY = key_input
-                    self.cortex.load()
-                    self.add_log(f"Primary Key Linked: {SlayerConfig.PRIMARY_KEY[:10]}...", "SUCCESS")
-                elif key_input.upper() == "OMEGA":
-                    SlayerConfig.PRIMARY_KEY = "gsk_" + SlayerConfig.SECRET_TAIL
-                    self.cortex.load()
-                    self.add_log("OMEGA Key Linked.", "SUCCESS")
+                    SlayerConfig.PRIMARY_MODEL = "mixtral-8x7b-32768"
+                    SlayerConfig.API_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+                    self.add_log("Groq Neural Core Linked.", "SUCCESS")
+                elif key_input.startswith("sk-"):
+                    SlayerConfig.PRIMARY_KEY = key_input
+                    SlayerConfig.PRIMARY_MODEL = "gpt-4-turbo"
+                    SlayerConfig.API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+                    self.add_log("OpenAI Neural Core Linked.", "SUCCESS")
+                else:
+                    # Default to Mistral for other keys
+                    SlayerConfig.PRIMARY_KEY = key_input
+                    SlayerConfig.PRIMARY_MODEL = "mistral-small-latest"
+                    SlayerConfig.API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
+                    self.add_log("Mistral Neural Core Linked.", "SUCCESS")
+                
+                self.cortex.load()
             else:
-                self.add_log("Usage: API <primary_key> [fallback_key]", "WARN")
+                self.add_log("Usage: API <key>", "WARN")
         elif cmd == "SCAN":
             self.target = args[0] if args else input("Target: ")
             threading.Thread(target=self.offensive.scan, args=(self.target,)).start()
@@ -798,7 +799,7 @@ class TermuxSlayerApp:
         self.cortex.load()
         self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
         self.add_log("ESC Key : Global Kill-Switch (Terminate All)", "CRITICAL")
-        self.add_log("API gsk_ : Ignite the Neural Core", "SUCCESS")
+        self.add_log("API <key> : Ignite the Neural Core (Mistral/Groq/OpenAI)", "SUCCESS")
         self.add_log("TOR [ON/OFF] : Toggle anonymous routing", "INFO")
         self.add_log("AI <demand> : Autonomous execution override", "AI")
         self.add_log("SCAN <target> : Deep vector port scan", "INFO")
