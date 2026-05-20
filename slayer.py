@@ -41,7 +41,6 @@ class SlayerConfig:
     CORE_S1 = "tcYOIBeISEIfl8rkkky9N2LV"
     CORE_S2 = "uZwYXmlTvd5voWlmlJEsk3ZC"
     
-    # Audited Tactical Command List from Screenshot
     COMMAND_LIST = {
         "API gsk_": "Ignite the Neural Core with your Groq API.",
         "TOR [ON/OFF]": "Toggle TOR circuit for anonymous routing.",
@@ -122,8 +121,8 @@ class TermuxSlayerApp:
 
         # Body (Output)
         cols, rows = shutil.get_terminal_size()
-        # Leave space for the footer and the input line
-        limit = max(4, (rows - 10) // 3)
+        # Strictly limit the logs based on available rows to prevent stretching
+        limit = max(3, (rows - 12) // 4)
         body_text = Text()
         for t, lvl, clr, msg in self.logs[-limit:]:
             body_text.append(f"[{t}] ", style="white")
@@ -139,7 +138,11 @@ class TermuxSlayerApp:
         # Neural Link
         neural_text = Text()
         if not self.first_cmd_issued:
-            for cmd, desc in SlayerConfig.COMMAND_LIST.items():
+            # For the command list, we also need to be careful with height
+            cmds = list(SlayerConfig.COMMAND_LIST.items())
+            # Limit commands if screen is very small
+            max_cmds = max(5, rows // 5)
+            for cmd, desc in cmds[:max_cmds]:
                 neural_text.append(f"• {cmd}", style="bold white")
                 neural_text.append(f" : {desc}\n", style="white")
         else:
@@ -162,7 +165,7 @@ class TermuxSlayerApp:
             self.logs = []
             self.first_cmd_issued = True
             
-        self.current_cmd = cmd_input
+        self.current_cmd = "" # Clear current command after processing
         parts = cmd_input.split()
         cmd = parts[0].upper()
         args = parts[1:]
@@ -188,7 +191,6 @@ class TermuxSlayerApp:
 
     def run(self):
         threading.Thread(target=self.tor.get_ip, daemon=True).start()
-        # Initial logs matching screenshot
         self.add_log("AUTO <target> : Full-spectrum automation", "CRITICAL")
         self.add_log("OMEGA <target> : Initiate the brutal OMEGA PROTOCOL override.", "CRITICAL")
         self.add_log("GEO <ip> : Physical location mapping", "INFO")
@@ -198,18 +200,31 @@ class TermuxSlayerApp:
         self.add_log("SHELL <ip> <port> : Reverse shell generation", "SUCCESS")
         self.add_log("EXFIL <target> <file> : Data exfiltration", "INFO")
         
-        # To leave one line for typing, we set the Live height to rows - 1
-        with Live(self.make_layout(), refresh_per_second=4, screen=True) as live:
-            while self.running:
-                cols, rows = shutil.get_terminal_size()
-                # Update layout height to leave the last line for input()
-                live.update(self.make_layout())
-                try:
-                    # console.input is better but for raw terminal input() is fine
-                    cmd = input("")
-                    self.process_command(cmd)
-                except (KeyboardInterrupt, EOFError):
-                    break
+        # We use a trick to keep the UI from flickering: 
+        # 1. Clear the screen once
+        # 2. Use Live but NOT on the full screen
+        # 3. Print the layout manually to a specific height
+        # This prevents the "jumping" caused by input()
+        
+        while self.running:
+            cols, rows = shutil.get_terminal_size()
+            # Lock the UI to rows - 1
+            ui_height = rows - 1
+            
+            # Clear screen and move to top
+            sys.stdout.write("\033[H\033[2J\033[3J")
+            sys.stdout.flush()
+            
+            # Print the layout
+            console.print(self.make_layout(), height=ui_height)
+            
+            try:
+                # The input will now happen on the very last line
+                cmd = input("")
+                self.current_cmd = cmd # Temporarily store for the next render
+                self.process_command(cmd)
+            except (KeyboardInterrupt, EOFError):
+                break
 
 if __name__ == "__main__":
     app = TermuxSlayerApp()
