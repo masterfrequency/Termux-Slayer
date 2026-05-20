@@ -372,7 +372,23 @@ class OffensiveSuite:
         self.ui.active_tasks += 1
         try:
             self.ui.add_log(f"Initiating RECON on {domain}", "INFO")
-            subs = ["www", "dev", "api", "db", "mail", "admin", "test", "portal", "vpn"]
+            # Expanded tactical subdomain list for 2026
+            subs = [
+                "www", "dev", "api", "db", "mail", "admin", "test", "portal", "vpn", "git", "ssh", "ftp",
+                "staging", "prod", "internal", "secure", "beta", "demo", "app", "cloud", "aws", "azure",
+                "ns1", "ns2", "mx1", "mx2", "smtp", "pop", "imap", "webmail", "blog", "shop", "forum",
+                "status", "support", "help", "docs", "cdn", "assets", "static", "media", "images", "videos",
+                "upload", "download", "files", "storage", "backup", "archive", "old", "new", "v1", "v2",
+                "alpha", "gamma", "omega", "sigma", "delta", "epsilon", "theta", "iota", "kappa", "lambda",
+                "mu", "nu", "xi", "omicron", "pi", "rho", "tau", "upsilon", "phi", "chi", "psi",
+                "remote", "vpn1", "vpn2", "firewall", "router", "switch", "gateway", "proxy", "lb",
+                "monitor", "grafana", "prometheus", "elastic", "kibana", "splunk", "graylog", "logstash",
+                "jenkins", "gitlab", "github", "bitbucket", "jira", "confluence", "slack", "discord",
+                "moodle", "canvas", "blackboard", "zoom", "teams", "office365", "google", "workspace",
+                "cpanel", "whm", "plesk", "directadmin", "webmin", "phpmyadmin", "mysql", "postgres",
+                "redis", "memcached", "cassandra", "mongo", "docker", "k8s", "kubernetes", "helm",
+                "rancher", "portainer", "proxmox", "esxi", "vcenter", "vcloud", "vsphere", "openstack"
+            ]
             found = []
             for s in subs:
                 target = f"{s}.{domain}"
@@ -632,9 +648,11 @@ class TermuxSlayerApp:
         return Panel(text, title="Output", border_style="green")
 
     def render(self):
+        if self.active_tasks > 0:
+            self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_chars)
+        
         cols, rows = shutil.get_terminal_size()
         ui_height = rows - 1
-        # Use a more efficient clear and update
         sys.stdout.write("\033[?25l") # Hide cursor
         sys.stdout.write("\033[H") # Move cursor to top
         self.setup_layout()
