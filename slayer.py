@@ -143,6 +143,7 @@ class TermuxSlayerApp:
         self.target = "NONE"
         self.current_cmd = ""
         self.active_tasks = 0
+        self.first_cmd_issued = False
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.tor = TorManager(self)
@@ -175,9 +176,17 @@ class TermuxSlayerApp:
 
     def get_neural(self):
         text = Text()
-        for cmd, desc in SlayerConfig.COMMAND_LIST.items():
-            text.append(f"• {cmd}", style="bold white")
-            text.append(f" : {desc}\n", style="white")
+        if not self.first_cmd_issued:
+            for cmd, desc in SlayerConfig.COMMAND_LIST.items():
+                text.append(f"• {cmd}", style="bold white")
+                text.append(f" : {desc}\n", style="white")
+        else:
+            if self.cortex.history:
+                q, a = self.cortex.history[-1]
+                text.append(f"TACTICAL ADVICE:\n", style="bold magenta")
+                text.append(f"{a}\n", style="magenta")
+            else:
+                text.append("Awaiting tactical input...", style="italic white")
         return Panel(text, title="Neural Link (Live Feedback)", border_style="magenta", title_align="center")
 
     def get_body(self):
@@ -208,6 +217,10 @@ class TermuxSlayerApp:
 
     def process_command(self, cmd_input):
         if not cmd_input: return
+        if not self.first_cmd_issued:
+            self.logs = []
+            self.first_cmd_issued = True
+            
         parts = cmd_input.split()
         cmd = parts[0].upper()
         args = parts[1:]
