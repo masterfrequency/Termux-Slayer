@@ -95,6 +95,14 @@ class TermuxSlayerApp:
         self.cortex = NeuralCortex()
         self.layout = Layout()
         self.running = True
+        
+        # Set up signal handler for terminal resize
+        if hasattr(signal, 'SIGWINCH'):
+            signal.signal(signal.SIGWINCH, self.handle_resize)
+
+    def handle_resize(self, signum, frame):
+        # Force a re-render when the terminal is resized
+        self.render()
 
     def add_log(self, msg, level="INFO"):
         colors = {"INFO": "blue", "SUCCESS": "green", "WARN": "yellow", "CRITICAL": "red", "AI": "magenta"}
@@ -121,7 +129,6 @@ class TermuxSlayerApp:
 
         # Body (Output)
         cols, rows = shutil.get_terminal_size()
-        # Strictly limit the logs based on available rows to prevent stretching
         limit = max(3, (rows - 12) // 4)
         body_text = Text()
         for t, lvl, clr, msg in self.logs[-limit:]:
@@ -138,9 +145,7 @@ class TermuxSlayerApp:
         # Neural Link
         neural_text = Text()
         if not self.first_cmd_issued:
-            # For the command list, we also need to be careful with height
             cmds = list(SlayerConfig.COMMAND_LIST.items())
-            # Limit commands if screen is very small
             max_cmds = max(5, rows // 5)
             for cmd, desc in cmds[:max_cmds]:
                 neural_text.append(f"• {cmd}", style="bold white")
@@ -159,13 +164,23 @@ class TermuxSlayerApp:
         
         return layout
 
+    def render(self):
+        cols, rows = shutil.get_terminal_size()
+        ui_height = rows - 1
+        sys.stdout.write("\033[H\033[2J\033[3J")
+        sys.stdout.flush()
+        console.print(self.make_layout(), height=ui_height)
+        # Move cursor to the very last line for input
+        sys.stdout.write(f"\033[{rows};1H")
+        sys.stdout.flush()
+
     def process_command(self, cmd_input):
         if not cmd_input: return
         if not self.first_cmd_issued:
             self.logs = []
             self.first_cmd_issued = True
             
-        self.current_cmd = "" # Clear current command after processing
+        self.current_cmd = ""
         parts = cmd_input.split()
         cmd = parts[0].upper()
         args = parts[1:]
@@ -200,28 +215,12 @@ class TermuxSlayerApp:
         self.add_log("SHELL <ip> <port> : Reverse shell generation", "SUCCESS")
         self.add_log("EXFIL <target> <file> : Data exfiltration", "INFO")
         
-        # We use a trick to keep the UI from flickering: 
-        # 1. Clear the screen once
-        # 2. Use Live but NOT on the full screen
-        # 3. Print the layout manually to a specific height
-        # This prevents the "jumping" caused by input()
-        
         while self.running:
-            cols, rows = shutil.get_terminal_size()
-            # Lock the UI to rows - 1
-            ui_height = rows - 1
-            
-            # Clear screen and move to top
-            sys.stdout.write("\033[H\033[2J\033[3J")
-            sys.stdout.flush()
-            
-            # Print the layout
-            console.print(self.make_layout(), height=ui_height)
-            
+            self.render()
             try:
                 # The input will now happen on the very last line
                 cmd = input("")
-                self.current_cmd = cmd # Temporarily store for the next render
+                self.current_cmd = cmd
                 self.process_command(cmd)
             except (KeyboardInterrupt, EOFError):
                 break
