@@ -41,6 +41,7 @@ class SlayerConfig:
     CORE_S1 = "tcYOIBeISEIfl8rkkky9N2LV"
     CORE_S2 = "uZwYXmlTvd5voWlmlJEsk3ZC"
     
+    # Audited Tactical Command List from Screenshot
     COMMAND_LIST = {
         "API gsk_": "Ignite the Neural Core with your Groq API.",
         "TOR [ON/OFF]": "Toggle TOR circuit for anonymous routing.",
@@ -121,8 +122,8 @@ class TermuxSlayerApp:
 
         # Body (Output)
         cols, rows = shutil.get_terminal_size()
-        # Dynamically adjust log limit based on terminal height
-        limit = max(4, rows // 6)
+        # Leave space for the footer and the input line
+        limit = max(4, (rows - 10) // 3)
         body_text = Text()
         for t, lvl, clr, msg in self.logs[-limit:]:
             body_text.append(f"[{t}] ", style="white")
@@ -176,11 +177,18 @@ class TermuxSlayerApp:
                 self.add_log("Manual Key Linked.", "SUCCESS")
         elif cmd == "TOR": 
             self.tor.toggle(args[0].upper() if args else None)
+        elif cmd == "AUTO":
+            self.target = args[0] if args else "NONE"
+            self.add_log(f"AUTO {self.target} : Full-spectrum automation", "CRITICAL")
+        elif cmd == "OMEGA":
+            self.target = args[0] if args else "NONE"
+            self.add_log(f"OMEGA {self.target} : Initiate the brutal OMEGA PROTOCOL override.", "CRITICAL")
         else: 
             self.add_log(f"Processing: {cmd}", "INFO")
 
     def run(self):
         threading.Thread(target=self.tor.get_ip, daemon=True).start()
+        # Initial logs matching screenshot
         self.add_log("AUTO <target> : Full-spectrum automation", "CRITICAL")
         self.add_log("OMEGA <target> : Initiate the brutal OMEGA PROTOCOL override.", "CRITICAL")
         self.add_log("GEO <ip> : Physical location mapping", "INFO")
@@ -190,22 +198,17 @@ class TermuxSlayerApp:
         self.add_log("SHELL <ip> <port> : Reverse shell generation", "SUCCESS")
         self.add_log("EXFIL <target> <file> : Data exfiltration", "INFO")
         
+        # To leave one line for typing, we set the Live height to rows - 1
         with Live(self.make_layout(), refresh_per_second=4, screen=True) as live:
             while self.running:
+                cols, rows = shutil.get_terminal_size()
+                # Update layout height to leave the last line for input()
                 live.update(self.make_layout())
-                # Using a non-blocking way to handle input is complex in a basic script,
-                # but we can ensure the layout is redrawn before input.
-                # In Termux, the 'input()' call will pause the loop, but the 'Live' context
-                # will handle the screen refresh once input is received or if a resize signal hits.
                 try:
-                    # We use a small trick: the Live display is on the alternate screen.
-                    # 'input' might break the visual, so we stop Live briefly or use a thread.
-                    # For Termux stability, we'll keep it simple but responsive to resize.
-                    cmd = console.input("[bold green]Slayer-Input > [/]")
+                    # console.input is better but for raw terminal input() is fine
+                    cmd = input("")
                     self.process_command(cmd)
-                except KeyboardInterrupt:
-                    break
-                except EOFError:
+                except (KeyboardInterrupt, EOFError):
                     break
 
 if __name__ == "__main__":
