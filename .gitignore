@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+slayer_models/
+*.tar.gz
+.env
+.secrets/
