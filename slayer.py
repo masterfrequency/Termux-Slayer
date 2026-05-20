@@ -42,16 +42,16 @@ class SlayerConfig:
     LOG_FILE = os.path.join(BASE_DIR, "slayer_ops.log")
     DEFAULT_PORTS = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3306, 3389, 5432, 8080, 8443]
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
-    PRIMARY_MODEL = "mistral-large-latest"
+    PRIMARY_MODEL = "mistral-small-latest"
     FALLBACK_MODEL = "mistral-small-latest"
     # Fragmented Neural Core Assembly
     CORE_A = "SuSWVuKYZsmV1XjeT2oR"
     CORE_B = "CQhI2Mi30Uzv"
-    CORE_TAIL = ""
+    CORE_TAIL = "etLyC9AHcA5KaKsURXzPIVUuqYRkK0qE"
     CORE_S1 = ""
     CORE_S2 = ""
     PRIMARY_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
-    FALLBACK_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
+    FALLBACK_KEY = "etLyC9AHcA5KaKsURXzPIVUuqYRkK0qE"
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
     
     COMMAND_LIST = {
