@@ -752,48 +752,43 @@ class TermuxSlayerApp:
             "security testing only. Unauthorized access",
             "is illegal. Use at your own risk.",
             "",
-            "⚡️👾 by🇭🇷PhonkAlphabet 👾⚡️"
+            "⚡️👾 by PhonkAlphabet 👾⚡️"
         ]
         
         cols, rows = shutil.get_terminal_size()
         center_row = rows // 2 - len(disclaimer) // 2
+        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()"
         
         # Clear screen
         sys.stdout.write("\033[H\033[2J\033[3J")
         sys.stdout.flush()
         
-        # Flying letters animation
-        final_lines = [" " * cols for _ in range(rows)]
+        # Neural Decryption Effect
         for i, line in enumerate(disclaimer):
             target_row = center_row + i
             target_col = (cols - len(line)) // 2
             
-            current_line = list(" " * cols)
-            for char_idx, char in enumerate(line):
-                if char == " ": continue
+            # Reveal character by character with scrambling
+            current_display = ""
+            for char_idx, target_char in enumerate(line):
+                if target_char == " ":
+                    current_display += " "
+                    continue
                 
-                # Start from random position
-                curr_r = random.randint(0, rows - 1)
-                curr_c = random.randint(0, cols - 1)
-                
-                # Move to target
-                steps = 15
-                for s in range(steps):
-                    # Erase old
-                    sys.stdout.write(f"\033[{curr_r+1};{curr_c+1}H ")
-                    
-                    # Update pos
-                    curr_r += (target_row - curr_r) // (steps - s) if steps > s else 0
-                    curr_c += (target_col + char_idx - curr_c) // (steps - s) if steps > s else 0
-                    
-                    # Draw new
-                    color = Fore.RED if i < 4 else Fore.MAGENTA
-                    sys.stdout.write(f"\033[{curr_r+1};{curr_c+1}H{color}{char}{Style.RESET_ALL}")
+                # Scramble effect before reveal
+                for _ in range(3):
+                    scramble_char = random.choice(chars)
+                    sys.stdout.write(f"\033[{target_row+1};{target_col+1}H{current_display}{Fore.YELLOW}{scramble_char}{Style.RESET_ALL}")
                     sys.stdout.flush()
-                    time.sleep(0.005)
+                    time.sleep(0.01)
+                
+                current_display += target_char
+                color = Fore.RED if i < 4 else Fore.MAGENTA
+                sys.stdout.write(f"\033[{target_row+1};{target_col+1}H{color}{current_display}{Style.RESET_ALL}")
+                sys.stdout.flush()
             
-        time.sleep(2)
-        # Fade out / Clear
+        time.sleep(2.5)
+        # Clear for app start
         sys.stdout.write("\033[H\033[2J\033[3J")
         sys.stdout.flush()
 
