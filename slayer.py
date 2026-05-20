@@ -56,7 +56,7 @@ class SlayerConfig:
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
     
     COMMAND_LIST = {
-        "API <key>": "Ignite the Neural Core with any API key (Mistral/Groq/OpenAI).",
+        "API [key]": "Ignite the Neural Core (Internal keys or custom Mistral/Groq/OpenAI).",
         "TOR [ON/OFF]": "Toggle TOR circuit for anonymous routing.",
         "AI <demand>": "Direct neural link for autonomous execution.",
         "SCAN <target>": "Deep vector scan for open ports and services.",
@@ -687,7 +687,14 @@ class TermuxSlayerApp:
                 
                 self.cortex.load()
             else:
-                self.add_log("Usage: API <key>", "WARN")
+                # Internal Dual-Key Ignition
+                SlayerConfig.PRIMARY_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
+                SlayerConfig.FALLBACK_KEY = "etLyC9AHcA5KaKsURXzPIVUuqYRkK0qE"
+                SlayerConfig.PRIMARY_MODEL = "mistral-small-latest"
+                SlayerConfig.FALLBACK_MODEL = "mistral-small-latest"
+                SlayerConfig.API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
+                self.cortex.load()
+                self.add_log("Internal Dual-Mistral Core Ignited.", "SUCCESS")
         elif cmd == "SCAN":
             self.target = args[0] if args else input("Target: ")
             threading.Thread(target=self.offensive.scan, args=(self.target,)).start()
@@ -799,7 +806,7 @@ class TermuxSlayerApp:
         self.cortex.load()
         self.add_log("--- TACTICAL IGNITION SEQUENCE ---", "INFO")
         self.add_log("ESC Key : Global Kill-Switch (Terminate All)", "CRITICAL")
-        self.add_log("API <key> : Ignite the Neural Core (Mistral/Groq/OpenAI)", "SUCCESS")
+        self.add_log("API [key] : Ignite the Neural Core (Internal or custom)", "SUCCESS")
         self.add_log("TOR [ON/OFF] : Toggle anonymous routing", "INFO")
         self.add_log("AI <demand> : Autonomous execution override", "AI")
         self.add_log("SCAN <target> : Deep vector port scan", "INFO")
