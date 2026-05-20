@@ -42,16 +42,16 @@ class SlayerConfig:
     LOG_FILE = os.path.join(BASE_DIR, "slayer_ops.log")
     DEFAULT_PORTS = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 3306, 3389, 5432, 8080, 8443]
     TOR_PROXY = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
-    PRIMARY_MODEL = "mixtral-8x7b-32768"
-    FALLBACK_MODEL = "mixtral-8x7b-32768"
+    PRIMARY_MODEL = "mistral-large-latest"
+    FALLBACK_MODEL = "mistral-small-latest"
     # Fragmented Neural Core Assembly
-    CORE_A = "1iXBEeZeiy32Lo2B46km"
-    CORE_B = "VThzNLFZVMqhf5UmF618"
-    CORE_TAIL = "WGdyb3FY"
-    CORE_S1 = "tcYOIBeISEIfl8rkkky9N2LV"
-    CORE_S2 = "uZwYXmlTvd5voWlmlJEsk3ZC"
-    PRIMARY_KEY = ""
-    FALLBACK_KEY = ""
+    CORE_A = "SuSWVuKYZsmV1XjeT2oR"
+    CORE_B = "CQhI2Mi30Uzv"
+    CORE_TAIL = ""
+    CORE_S1 = ""
+    CORE_S2 = ""
+    PRIMARY_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
+    FALLBACK_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
     SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
     
     COMMAND_LIST = {
@@ -497,7 +497,7 @@ class NeuralCortex:
         self.ui.active_tasks += 1
         self.status = "THINKING"
         try:
-            url = "https://api.groq.com/openai/v1/chat/completions"
+            url = "https://api.mistral.ai/v1/chat/completions"
             
             cmd_knowledge = "\n".join([f"- {k}: {v}" for k, v in SlayerConfig.COMMAND_LIST.items()])
             system_msg = (
