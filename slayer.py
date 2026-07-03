@@ -11,7 +11,12 @@ import shutil
 import signal
 import json
 import hashlib
-import paramiko
+try:
+    import paramiko
+    HAS_PARAMIKO = True
+except ImportError:
+    paramiko = None
+    HAS_PARAMIKO = False
 import ftplib
 import termios
 import tty
@@ -249,6 +254,9 @@ class OffensiveSuite:
                     if self.stop_event.is_set(): return
                     try:
                         if s.lower() == "ssh":
+                            if not HAS_PARAMIKO:
+                                self.ui.add_log(f"SSH bruteforce unavailable: install 'python-paramiko' via pkg (Termux) or 'paramiko' via pip", "ERROR")
+                                break
                             c = paramiko.SSHClient()
                             c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                             c.connect(t, username=user, password=pwd, timeout=5)
